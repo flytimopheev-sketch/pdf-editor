@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Редактор PDF — Скачивание для РЕД ОС</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; display: flex; flex-direction: column; }
+  header { background: white; border-bottom: 1px solid #e2e8f0; padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+  .logo { width: 32px; height: 32px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; }
+  h1 { font-size: 15px; font-weight: 700; color: #1e293b; }
+  .subtitle { font-size: 10px; color: #94a3b8; font-weight: 500; }
+  main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+  .card { background: white; border-radius: 16px; padding: 40px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04); max-width: 420px; width: 100%; border: 1px solid #e2e8f0; }
+  .icon { width: 64px; height: 64px; background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+  .icon svg { width: 32px; height: 32px; color: #059669; }
+  h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; color: #0f172a; }
+  .desc { font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 24px; }
+  .size { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; box-shadow: 0 1px 3px rgba(5,150,105,0.3); }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(5,150,105,0.3); }
+  .btn svg { width: 20px; height: 20px; }
+  .steps { margin-top: 28px; text-align: left; background: #f8fafc; border-radius: 10px; padding: 16px 20px; }
+  .steps h3 { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 10px; }
+  .steps ol { padding-left: 20px; font-size: 13px; color: #64748b; line-height: 1.8; }
+  .steps code { background: #e2e8f0; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  footer { text-align: center; padding: 16px; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="logo">PDF</div>
+    <div>
+      <h1>Редактор PDF</h1>
+      <div class="subtitle">Linux</div>
+    </div>
+  </header>
+  <main>
+    <div class="card">
+      <div class="icon">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+      </div>
+      <h2>PDF Мастер для РЕД ОС</h2>
+      <p class="desc">Готовый архив с редактором PDF. Установите на РЕД ОС за 3 команды — откроется как нативное приложение через браузер.</p>
+      <p class="size">pdf-master-1.0.0-linux-x86_64.tar.gz · 5.9 МБ</p>
+      <a class="btn" href="/api/download" id="dl">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        Скачать для РЕД ОС
+      </a>
+      <div class="steps">
+        <h3>Установка на РЕД ОС:</h3>
+        <ol>
+          <li>Распакуйте: <code>tar xzf pdf-master-1.0.0-linux-x86_64.tar.gz</code></li>
+          <li>Перейдите: <code>cd pdf-master-1.0.0</code></li>
+          <li>Установите: <code>sudo ./install.sh</code></li>
+        </ol>
+      </div>
+    </div>
+  </main>
+  <footer>© 2025 PDF Мастер · flytimopheev@gmail.com</footer>
+  <script>
+    document.getElementById('dl').addEventListener('click', function(e) {
+      e.preventDefault();
+      var btn = this;
+      btn.textContent = 'Загрузка...';
+      fetch('/api/download')
+        .then(function(r) { if (!r.ok) throw new Error('Не найден'); return r.blob(); })
+        .then(function(blob) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url; a.download = 'pdf-master-1.0.0-linux-x86_64.tar.gz';
+          document.body.appendChild(a); a.click(); a.remove();
+          URL.revokeObjectURL(url);
+          btn.textContent = '✓ Скачано!';
+        })
+        .catch(function(err) { alert('Ошибка: ' + err.message); btn.textContent = 'Скачать для РЕД ОС'; });
+    });
+  </script>
+</body>
+</html>
