@@ -60,3 +60,5 @@ gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || :
 /opt/pdf-editor
 /usr/share/applications/pdf-editor.desktop
 /usr/share/icons/hicolor/*/apps/pdf-editor.png
+# SUID-помощник Chrome sandbox обязателен для Electron
+%attr(4755,root,root) /opt/pdf-editor/electron/electron/chrome-sandbox
