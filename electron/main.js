@@ -9,12 +9,28 @@ const APP_DIR = path.dirname(__dirname);
 
 function startServer() {
   return new Promise((resolve, reject) => {
-    const nodeExe = path.join(APP_DIR, "node", "bin", "node");
+    // Если сервер уже работает (остался от предыдущего запуска) — не запускаем повторно
+    const http = require("http");
+    http
+      .get(`http://127.0.0.1:${SERVER_PORT}/`, (res) => {
+        resolve();
+      })
+      .on("error", () => {
+        runServer().then(resolve).catch(reject);
+      });
+  });
+}
+
+function runServer() {
+  return new Promise((resolve, reject) => {
+    // Electron в режиме Node (ELECTRON_RUN_AS_NODE) — отдельный node не нужен
+    const nodeExe = process.execPath;
     const serverScript = path.join(APP_DIR, "app", "server.js");
 
     serverProcess = spawn(nodeExe, [serverScript], {
       env: {
         ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
         NODE_ENV: "production",
         NODE_PATH: path.join(APP_DIR, "app", "node_modules"),
         PORT: String(SERVER_PORT),
@@ -57,7 +73,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: "Редактор PDF — Редос",
-    icon: path.join(APP_DIR, "app", "public", "logo.svg"),
+    icon: path.join(APP_DIR, "app", "public", "logo-new2.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -135,7 +151,11 @@ function createMenu() {
         {
           label: "О программе",
           click: () => {
-            // Show about dialog
+            if (mainWindow) {
+              mainWindow.webContents.executeJavaScript(
+                `document.querySelector('button[aria-label="О программе"]')?.click()`
+              );
+            }
           },
         },
       ],

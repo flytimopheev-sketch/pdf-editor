@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Редактор PDF 2.0 — слои, аннотации, JPEG → PDF",
+  title: "Редактор PDF — слои, аннотации, JPEG → PDF",
   description:
     "Профессиональный редактор PDF: слои изменений с отменой действий, текст и подписи, поворот и обрезка, сжатие, преобразование изображений JPEG и PNG в PDF. Работает офлайн.",
   authors: [{ name: "Редактор PDF" }],

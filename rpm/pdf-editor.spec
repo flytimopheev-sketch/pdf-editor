@@ -1,70 +1,62 @@
 Name:           pdf-editor
-Version:        1.0.0
+Version:        2.0.0
 Release:        1%{?dist}
-Summary:        Редактор PDF — графический редактор PDF файлов
+Summary:        Редактор PDF — редактор PDF-документов для РЕД ОС
 License:        MIT
-URL:            http://localhost:3000
-Source0:        pdf-editor-%{version}.tar.gz
+URL:            https://github.com/flytimopheev-sketch/pdf-editor
+Source0:        %{name}-%{version}.tar.gz
 BuildArch:      x86_64
-Requires:       glibc
 AutoReqProv:    no
+Requires:       glibc
+
+%define _binary_payload w9.gzdio
 
 %description
-Графический веб-редактор PDF файлов для РЕД ОС.
-Поддерживает открытие, вращение, добавление текста,
-выделение и копирование фрагментов, сжатие PDF.
+Настольный редактор PDF-документов (Electron).
+Слои изменений с отменой действий, текст и подписи,
+поворот и обрезка страниц, экспорт в Word и Excel,
+сравнение двух документов, автосохранение сессии.
 
 %prep
 %setup -q
 
 %install
+rm -rf %{buildroot}
 mkdir -p %{buildroot}/opt/pdf-editor
-cp -r app %{buildroot}/opt/pdf-editor/
-cp -r node %{buildroot}/opt/pdf-editor/
-cp -r bin %{buildroot}/opt/pdf-editor/
+cp -r app %{buildroot}/opt/pdf-editor/app
+cp -r electron %{buildroot}/opt/pdf-editor/electron
+cp -r icons %{buildroot}/opt/pdf-editor/icons
+install -m 755 run.sh       %{buildroot}/opt/pdf-editor/run.sh
+install -m 755 install.sh   %{buildroot}/opt/pdf-editor/install.sh
+install -m 755 uninstall.sh %{buildroot}/opt/pdf-editor/uninstall.sh
 
-mkdir -p %{buildroot}/etc/systemd/system
-cat > %{buildroot}/etc/systemd/system/pdf-editor.service << 'EOF'
-[Unit]
-Description=Редактор PDF
-After=network.target
+# Иконки всех размеров (красивый ярлык в меню)
+for size in 16 24 32 48 64 128 256 512; do
+  mkdir -p %{buildroot}/usr/share/icons/hicolor/${size}x${size}/apps
+  install -m 644 icons/pdf-editor-${size}.png \
+    %{buildroot}/usr/share/icons/hicolor/${size}x${size}/apps/pdf-editor.png
+done
 
-[Service]
-Type=simple
-WorkingDirectory=/opt/pdf-editor/app
-Environment=NODE_PATH=/opt/pdf-editor/app/node_modules
-Environment=PORT=3000
-Environment=HOSTNAME=0.0.0.0
-ExecStart=/opt/pdf-editor/node/bin/node /opt/pdf-editor/app/server.js
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
+# Ярлык в меню приложений
 mkdir -p %{buildroot}/usr/share/applications
 cat > %{buildroot}/usr/share/applications/pdf-editor.desktop << 'EOF'
 [Desktop Entry]
 Name=Редактор PDF
-Comment=Графический редактор PDF файлов
-Exec=xdg-open http://localhost:3000
-Icon=text-editor
+GenericName=Редактор PDF-документов
+Comment=Редактирование PDF: слои, текст, подписи, OCR
+Exec=/opt/pdf-editor/run.sh
+Icon=pdf-editor
 Terminal=false
 Type=Application
-Categories=Office;Graphics;
+Categories=Office;Graphics;Viewer;
+StartupNotify=true
 EOF
+
+%post
+update-desktop-database /usr/share/applications 2>/dev/null || :
+gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || :
 
 %files
 /opt/pdf-editor
-/etc/systemd/system/pdf-editor.service
 /usr/share/applications/pdf-editor.desktop
-
-%post
-%systemd_post pdf-editor.service
-
-%preun
-%systemd_preun pdf-editor.service
-
-%postun
-%systemd_postun_with_restart pdf-editor.service
+/usr/share/icons/hicolor/*/apps/pdf-editor.png

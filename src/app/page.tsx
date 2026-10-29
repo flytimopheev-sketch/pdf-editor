@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Clipboard, Loader2, GripVertical, X, Save,
-  Crop, SunMedium, Palette, Info, Mail,
+  Crop, SunMedium, Palette, Info, Mail, User, Scale, Github,
 } from "lucide-react";
 
 const FONT_MAP: Record<string, string> = {
@@ -1600,12 +1600,7 @@ export default function HomePage() {
             <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-white/25 pointer-events-none" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold text-slate-800 tracking-tight">Редактор PDF</h1>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 border border-emerald-200/70 px-1.5 py-0.5 rounded-full">
-                v2.0
-              </span>
-            </div>
+            <h1 className="text-sm font-bold text-slate-800 tracking-tight">Редактор PDF</h1>
             <p className="text-[10px] text-slate-400 font-medium leading-tight hidden sm:block">
               Профессиональное редактирование документов
             </p>
@@ -1708,6 +1703,46 @@ export default function HomePage() {
                     <span className="block text-xs font-medium text-slate-700 truncate">flytimopheev@gmail.com</span>
                   </span>
                 </a>
+                {/* Автор и лицензия */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <a
+                    href="https://github.com/flytimopheev-sketch"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-2 hover:bg-emerald-50 hover:border-emerald-200/70 transition-colors"
+                  >
+                    <span className="h-6 w-6 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                      <User className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Автор</span>
+                      <span className="block text-xs font-medium text-slate-700 truncate">flytimopheev</span>
+                    </span>
+                  </a>
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-2">
+                    <span className="h-6 w-6 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                      <Scale className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Лицензия</span>
+                      <span className="block text-xs font-medium text-slate-700 truncate">MIT</span>
+                    </span>
+                  </div>
+                </div>
+                <a
+                  href="https://github.com/flytimopheev-sketch/pdf-editor"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-2 hover:bg-emerald-50 hover:border-emerald-200/70 transition-colors group"
+                >
+                  <span className="h-6 w-6 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-200 transition-colors">
+                    <Github className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Исходный код</span>
+                    <span className="block text-xs font-medium text-slate-700 truncate">github.com/flytimopheev-sketch/pdf-editor</span>
+                  </span>
+                </a>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
                     { dot: "bg-emerald-400", label: "Слои и история" },
@@ -1725,7 +1760,7 @@ export default function HomePage() {
                   ))}
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
-                  <p className="text-[10px] text-slate-400">Для РЕД ОС (x86_64) · 2025</p>
+                  <p className="text-[10px] text-slate-400">Для РЕД ОС (x86_64) · 2026</p>
                   <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
                     Работает офлайн
                   </span>

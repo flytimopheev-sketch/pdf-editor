@@ -6,9 +6,8 @@ echo "=== Building Редактор PDF Desktop App for РЕД ОС ==="
 SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 BUILD_DIR="$PROJECT_DIR/dist-electron"
-PACKAGE_DIR="$BUILD_DIR/package"
 APP_NAME="pdf-editor"
-VERSION="1.0.0"
+VERSION="2.0.0"
 ARCH="x86_64"
 PACKAGE_NAME="$APP_NAME-$VERSION-$ARCH"
 
@@ -53,181 +52,132 @@ if [ -z "$ELECTRON_EXE" ]; then
   exit 1
 fi
 
-# Create launcher script
+# Create launcher script (desktop app: electron in foreground)
 cat > "$PACKAGE_DIR/run.sh" << 'LAUNCHER'
 #!/bin/bash
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 ELECTRON="$APP_DIR/electron/electron/electron"
 MAIN_JS="$APP_DIR/electron/main.js"
-LOG="/var/log/pdf-editor.log"
-
-mkdir -p "$(dirname "$LOG")" 2>/dev/null
 
 export NODE_ENV=production
 export PORT=3000
-export HOSTNAME=0.0.0.0
-export NODE_PATH="$APP_DIR/app/node_modules"
+export DATABASE_URL="${DATABASE_URL:-file:$HOME/.pdf-editor/custom.db}"
+mkdir -p "$(dirname "${DATABASE_URL#file:}")" 2>/dev/null
 
-cd "$APP_DIR"
-nohup "$ELECTRON" "$MAIN_JS" > "$LOG" 2>&1 &
-echo $! > /var/run/pdf-editor.pid
-sleep 3
-
-if kill -0 "$(cat /var/run/pdf-editor.pid 2>/dev/null)" 2>/dev/null; then
-  echo "✓ Редактор PDF запущен (PID: $(cat /var/run/pdf-editor.pid))"
-  echo "  http://localhost:$PORT"
-else
-  echo "✗ Ошибка запуска. Проверьте $LOG"
-  exit 1
-fi
+exec "$ELECTRON" "$MAIN_JS"
 LAUNCHER
 chmod +x "$PACKAGE_DIR/run.sh"
 
-# Create stop script
-cat > "$PACKAGE_DIR/stop.sh" << 'STOP'
-#!/bin/bash
-PID_FILE="/var/run/pdf-editor.pid"
-if [ -f "$PID_FILE" ]; then
-  PID=$(cat "$PID_FILE" 2>/dev/null)
-  if kill -0 "$PID" 2>/dev/null; then
-    kill "$PID"
-    rm -f "$PID_FILE"
-    echo "✓ Редактор PDF остановлен"
-  else
-    rm -f "$PID_FILE"
-    echo "Процесс не найден"
-  fi
-else
-  echo "PID файл не найден"
-fi
-STOP
-chmod +x "$PACKAGE_DIR/stop.sh"
-
-# Create install.sh
+# Create install.sh (desktop application: /opt + menu shortcut with proper icon)
 cat > "$PACKAGE_DIR/install.sh" << INSTALL
 #!/bin/bash
 set -e
 
 APP_NAME="pdf-editor"
-APP_DIR="/opt/$APP_NAME"
-SERVICE_NAME="pdf-editor"
-PORT=3000
+APP_DIR="/opt/\$APP_NAME"
 
 echo "=========================================="
-echo "  Редактор PDF — Установка (Desktop)"
+echo "  Редактор PDF — Установка"
 echo "=========================================="
 
-if [ -d "$APP_DIR" ]; then
-  echo "Редактор PDF уже установлен в $APP_DIR"
-  echo "Для переустановки удалите: sudo rm -rf $APP_DIR"
+if [ "\$EUID" -ne 0 ]; then
+  echo "Запустите с правами root: sudo ./install.sh"
   exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="\$(cd "\$(dirname "\$0")" && pwd)"
 
-echo ""
-echo "[1/4] Копирование файлов в $APP_DIR..."
-sudo mkdir -p "$APP_DIR"
-sudo cp -r "$SCRIPT_DIR/app" "$APP_DIR/"
-sudo cp -r "$SCRIPT_DIR/electron" "$APP_DIR/"
-sudo cp "$SCRIPT_DIR/run.sh" "$APP_DIR/"
-sudo cp "$SCRIPT_DIR/stop.sh" "$APP_DIR/"
+# Удаляем остатки старой (веб) установки, если были
+systemctl stop pdf-editor 2>/dev/null || true
+systemctl disable pdf-editor 2>/dev/null || true
+rm -f /etc/systemd/system/pdf-editor.service
+rm -f /usr/local/bin/pdf-editor
+systemctl daemon-reload 2>/dev/null || true
 
-echo "[2/4] Настройка прав доступа..."
-sudo chmod +x "$APP_DIR/run.sh"
-sudo chmod +x "$APP_DIR/stop.sh"
-sudo chmod -R 755 "$APP_DIR/app"
-sudo chmod -R 755 "$APP_DIR/electron"
+echo "[1/3] Копирование файлов в \$APP_DIR..."
+mkdir -p "\$APP_DIR"
+cp -r "\$SCRIPT_DIR/app" "\$APP_DIR/"
+cp -r "\$SCRIPT_DIR/electron" "\$APP_DIR/"
+cp "\$SCRIPT_DIR/run.sh" "\$APP_DIR/"
+chmod +x "\$APP_DIR/run.sh"
 
-echo "[3/4] Создание systemd сервиса..."
-sudo tee /etc/systemd/system/$SERVICE_NAME.service > /dev/null << EOF
-[Unit]
-Description=Редактор PDF — графический редактор PDF файлов (Desktop)
-After=network.target
+echo "[2/3] Установка иконок..."
+for size in 16 24 32 48 64 128 256 512; do
+  if [ -f "\$SCRIPT_DIR/icons/pdf-editor-\${size}.png" ]; then
+    mkdir -p "/usr/share/icons/hicolor/\${size}x\${size}/apps"
+    cp "\$SCRIPT_DIR/icons/pdf-editor-\${size}.png" "/usr/share/icons/hicolor/\${size}x\${size}/apps/pdf-editor.png"
+  fi
+done
 
-[Service]
-Type=simple
-WorkingDirectory=$APP_DIR/app
-Environment=NODE_ENV=production
-Environment=NODE_PATH=$APP_DIR/app/node_modules
-Environment=PORT=$PORT
-Environment=HOSTNAME=0.0.0.0
-ExecStart=$APP_DIR/run.sh
-Restart=on-failure
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-echo "[4/4] Создание ярлыка на рабочем столе..."
-sudo mkdir -p /usr/share/applications
-sudo tee /usr/share/applications/$APP_NAME.desktop > /dev/null << EOF
+echo "[3/3] Создание ярлыка в меню приложений..."
+mkdir -p /usr/share/applications
+cat > /usr/share/applications/\$APP_NAME.desktop << EOF
 [Desktop Entry]
 Name=Редактор PDF
-Comment=Графический редактор PDF файлов
-Exec=$APP_DIR/run.sh
-Icon=text-editor
+GenericName=Редактор PDF-документов
+Comment=Редактирование PDF: слои, текст, подписи, OCR
+Exec=\$APP_DIR/run.sh
+Icon=pdf-editor
 Terminal=false
 Type=Application
-Categories=Office;Graphics;
+Categories=Office;Graphics;Viewer;
 StartupNotify=true
+StartupWMClass=Редактор PDF
 EOF
 
-echo ""
-echo "Включение автозапуска..."
-sudo systemctl daemon-reload
-sudo systemctl enable $SERVICE_NAME
-sudo systemctl start $SERVICE_NAME
+chmod 644 /usr/share/applications/\$APP_NAME.desktop
+
+# Обновляем кэши (не критично при ошибке)
+update-desktop-database /usr/share/applications 2>/dev/null || true
+gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 
 echo ""
-echo "Ожидание запуска..."
-sleep 5
-
-if sudo systemctl is-active --quiet $SERVICE_NAME; then
-  echo ""
-  echo "=========================================="
-  echo "  ✓ Установка завершена!"
-  echo "=========================================="
-  echo ""
-  echo "  Редактор PDF запущен как десктопное приложение"
-  echo "  Управление сервисом:"
-  echo "    sudo systemctl start $SERVICE_NAME   — запустить"
-  echo "    sudo systemctl stop $SERVICE_NAME    — остановить"
-  echo "    sudo systemctl restart $SERVICE_NAME  — перезапустить"
-  echo "    sudo systemctl status $SERVICE_NAME   — статус"
-  echo ""
-else
-  echo ""
-  echo "⚠ Сервис не запустился. Проверьте логи:"
-  echo "  sudo journalctl -u $SERVICE_NAME -n 50"
-  echo ""
-  echo "Можно запустить вручную:"
-  echo "  $APP_DIR/run.sh"
-fi
+echo "=========================================="
+echo "  ✓ Установка завершена!"
+echo "=========================================="
+echo ""
+echo "  Приложение «Редактор PDF» доступно в меню приложений"
+echo "  (категория «Офис» / «Графика»)."
+echo ""
+echo "  Запуск вручную: \$APP_DIR/run.sh"
+echo "  Удаление:       sudo \$APP_DIR/uninstall.sh"
+echo ""
 INSTALL
 chmod +x "$PACKAGE_DIR/install.sh"
 
 # Create uninstall.sh
-cat > "$PACKAGE_DIR/uninstall.sh" << UNINSTALL
+cat > "$PACKAGE_DIR/uninstall.sh" << 'UNINSTALL'
 #!/bin/bash
 echo "Удаление Редактора PDF..."
-sudo systemctl stop pdf-editor 2>/dev/null
-sudo systemctl disable pdf-editor 2>/dev/null
-sudo rm -f /etc/systemd/system/pdf-editor.service
-sudo rm -f /usr/share/applications/pdf-editor.desktop
-sudo rm -rf /opt/pdf-editor
-sudo systemctl daemon-reload
+rm -f /usr/share/applications/pdf-editor.desktop
+for size in 16 24 32 48 64 128 256 512; do
+  rm -f "/usr/share/icons/hicolor/${size}x${size}/apps/pdf-editor.png"
+done
+rm -rf /opt/pdf-editor
+update-desktop-database /usr/share/applications 2>/dev/null || true
+gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 echo "✓ Редактор PDF удалён"
 UNINSTALL
 chmod +x "$PACKAGE_DIR/uninstall.sh"
+
+# Copy icons into package (for install.sh and RPM)
+mkdir -p "$PACKAGE_DIR/icons"
+cp "$PROJECT_DIR/rpm/icons/"*.png "$PACKAGE_DIR/icons/"
+
+# Fix ownership/permissions for RPM reproducibility
+find "$PACKAGE_DIR" -type d -exec chmod 755 {} \;
+find "$PACKAGE_DIR" -type f -exec chmod 644 {} \;
+chmod 755 "$PACKAGE_DIR/run.sh" "$PACKAGE_DIR/install.sh" "$PACKAGE_DIR/uninstall.sh"
+chmod 755 "$PACKAGE_DIR/electron/electron/electron" 2>/dev/null || true
+# SUID-помощник chrome-sandbox обязателен для Electron на Linux
+chmod 4755 "$PACKAGE_DIR/electron/electron/chrome-sandbox" 2>/dev/null || true
+find "$PACKAGE_DIR/electron/electron" -maxdepth 1 -type f \( -name "*.so" -o -name "*.bin" -o -name "*.dat" -o -name "*.pak" -o -name "*.json" \) -exec chmod 644 {} \; 2>/dev/null || true
 
 echo "[3/4] Creating tarball..."
 cd "$BUILD_DIR"
 tar czf "$PROJECT_DIR/$PACKAGE_NAME.tar.gz" "$PACKAGE_NAME"
 
+echo "[4/4] Done."
 SIZE=$(du -sh "$PROJECT_DIR/$PACKAGE_NAME.tar.gz" | cut -f1)
 echo ""
 echo "=========================================="
@@ -235,9 +185,10 @@ echo "  ✓ Пакет собран!"
 echo "=========================================="
 echo ""
 echo "  Файл: $PACKAGE_NAME.tar.gz ($SIZE)"
-echo "  Расположение: $PROJECT_DIR/$PACKAGE_NAME.tar.gz"
 echo ""
 echo "Для установки на РЕД ОС:"
 echo "  1. Скопируйте файл на РЕД ОС (USB)"
 echo "  2. Распакуйте: tar xzf $PACKAGE_NAME.tar.gz"
 echo "  3. Установите: cd $PACKAGE_NAME && sudo ./install.sh"
+echo ""
+echo "Для сборки RPM: python3 build-rpm.py"
