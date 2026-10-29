@@ -10,6 +10,7 @@ APP_NAME="pdf-editor"
 VERSION="2.0.0"
 ARCH="x86_64"
 PACKAGE_NAME="$APP_NAME-$VERSION-$ARCH"
+PACKAGE_DIR="$BUILD_DIR/$PACKAGE_NAME"
 
 echo "[1/4] Building Next.js standalone..."
 (cd "$PROJECT_DIR" && /usr/local/bin/bun run build)
