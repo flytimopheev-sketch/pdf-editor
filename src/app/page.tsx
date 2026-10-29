@@ -1760,7 +1760,7 @@ export default function HomePage() {
                   ))}
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
-                  <p className="text-[10px] text-slate-400">Для РЕД ОС (x86_64) · 2026</p>
+                  <p className="text-[10px] text-slate-400">© 2026 flytimopheev · РЕД ОС (x86_64)</p>
                   <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
                     Работает офлайн
                   </span>

@@ -72,7 +72,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    title: "Редактор PDF — Редос",
+    title: "Редактор PDF",
     icon: path.join(APP_DIR, "app", "public", "logo-new2.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

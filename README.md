@@ -1,53 +1,58 @@
 <div align="center">
 
-<img src="docs/logo.png" alt="Редактор PDF" width="128" />
+<img src="public/logo-new2.png" width="96" alt="Редактор PDF" />
 
 # Редактор PDF
 
 **Настольный редактор PDF-документов для РЕД ОС**
 
-Слои изменений · Текст и подписи · OCR · Экспорт в Word и Excel
+Профессиональная работа с PDF: слои правок, аннотации, OCR и экспорт — полностью офлайн.
 
-[![Версия](https://img.shields.io/github/v/tag/flytimopheev-sketch/pdf-editor?label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&sort=semver&color=10b981&style=flat-square)](https://github.com/flytimopheev-sketch/pdf-editor/releases)
-[![Лицензия](https://img.shields.io/github/license/flytimopheev-sketch/pdf-editor?label=%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F&color=10b981&style=flat-square)](LICENSE)
-[![Платформа](https://img.shields.io/badge/%D0%A0%D0%95%D0%94%20%D0%9E%D0%A1-7.x%20%C2%B7%208.x%20x86__64-10b981?style=flat-square)](#установка)
-[![Electron](https://img.shields.io/badge/Electron-33-47848f?style=flat-square)](https://www.electronjs.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square)](https://nextjs.org/)
+[![Version](https://img.shields.io/badge/версия-2.0.0-10b981?style=flat-square)](https://github.com/flytimopheev-sketch/pdf-editor/releases)
+[![License: MIT](https://img.shields.io/badge/лицензия-MIT-3b82f6?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/платформа-РЕД%20ОС%208%20·%20x86__64-f59e0b?style=flat-square)](#установка)
+[![Built with](https://img.shields.io/badge/Electron%20·%20Next.js-16-8b5cf6?style=flat-square)](#технологии)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-22c55e?style=flat-square)](https://github.com/flytimopheev-sketch/pdf-editor/pulls)
+
+[Возможности](#-возможности) · [Установка](#-установка) · [Сборка из исходников](#-сборка-из-исходников) · [Структура](#-структура-проекта)
+
+<img src="docs/screenshots/editor.png" width="820" alt="Редактор PDF — главный экран" />
 
 </div>
 
 ---
 
-<img src="docs/screenshot.png" alt="Интерфейс Редактора PDF" width="100%" />
-
 ## ✨ Возможности
 
 | | |
 |---|---|
-| 🗂 **Слои изменений** | каждая правка — отдельный слой с историей; исходный документ не изменяется, ничего не сводится в растр |
-| ✏️ **Рисование** | перо и ластик с настраиваемой толщиной, палитра цветов, пипетка |
-| 🔤 **Текст и подписи** | добавление текста с выбором шрифта и размера, шаблоны подписей для повторной вставки |
-| ↩️ **Отмена / Повтор** | полноценная история действий на каждом слое |
-| 🔍 **Поиск и OCR** | поиск по тексту и по отсканированным страницам (rus + eng, tesseract) |
-| 🔄 **Поворот и выравнивание** | поворот страниц с точностью до 1°, яркость и контраст |
-| 💾 **Сохранение и экспорт** | экспорт в PDF, Word (docx) и Excel (xlsx), выбор имени и каталога |
-| 🔀 **Второй документ** | параллельная работа с двумя PDF, перенос фрагментов между ними |
-| 🖼 **Изображения → PDF** | JPEG и PNG превращаются в PDF в один клик |
-| 💽 **Автосохранение сессии** | восстановление документов после перезапуска |
-| 🔌 **Работа офлайн** | все данные остаются на компьютере |
+| 🗂 **Слои изменений** | Каждая правка — отдельный слой. Оригинал документа не изменяется, правки не сводятся в растр |
+| ↩️ **Отмена / Повтор** | Полная история изменений с мгновенным откатом любого действия |
+| ✏️ **Перо и ластик** | Рисование от руки с настраиваемой толщиной линий |
+| 🔤 **Текст и заметки** | Добавление текстовых блоков с выбором шрифта и размера |
+| ✍️ **Шаблоны подписей** | Сохранение фрагментов как подписей и быстрая вставка в любой документ |
+| 🔍 **Поиск** | Поиск по текстовому слою PDF и по отсканированным страницам |
+| 🧠 **OCR (рус / eng)** | Распознавание текста на сканах — языковые модели включены в поставку |
+| 🔄 **Поворот и обрезка** | Поворот выделенных страниц и целых документов, обрезка полей |
+| 💾 **Сохранение PDF** | Экспорт с сохранением всех правок, выбор имени и каталога |
+| 📊 **Экспорт Word / Excel** | Конвертация документа в DOCX и XLSX |
+| 🔀 **Второй документ** | Режим сравнения и переноса фрагментов между двумя документами |
+| 🖼 **JPEG / PNG → PDF** | Изображения превращаются в PDF в один клик |
+| 💽 **Автосохранение сессии** | Восстановление документов после перезапуска |
+| 🔒 **Офлайн** | Все данные остаются на вашем компьютере |
 
-## 📦 Установка (РЕД ОС 7.x / 8.x, x86_64)
+## 📦 Установка
 
-### Вариант 1 — RPM-пакет
+### Способ 1 — RPM (РЕД ОС 8, рекомендуется)
 
 ```bash
-sudo dnf install ./pdf-editor-2.0.0-1.x86_64.rpm
+sudo dnf install ./pdf-editor-2.0.0-1.el8.x86_64.rpm
 ```
 
-После установки приложение появится в меню приложений
-(категория «Офис») с фирменной иконкой.
+Пакет ставит приложение в `/opt/pdf-editor`, иконки всех размеров в `/usr/share/icons/hicolor/`
+и ярлык в меню приложений (категория «Офис»).
 
-### Вариант 2 — Tarball
+### Способ 2 — TAR.GZ
 
 ```bash
 tar xzf pdf-editor-2.0.0-x86_64.tar.gz
@@ -55,56 +60,93 @@ cd pdf-editor-2.0.0-x86_64
 sudo ./install.sh
 ```
 
-Готовые сборки — в разделе [Releases](https://github.com/flytimopheev-sketch/pdf-editor/releases).
+> Готовые сборки — в разделе [Releases](https://github.com/flytimopheev-sketch/pdf-editor/releases).
 
-## 🛠 Разработка
-
-Требуется [bun](https://bun.sh).
+### Способ 3 — установочный скрипт
 
 ```bash
-# зависимости
+sudo bash install.sh
+```
+
+## 🛠 Сборка из исходников
+
+Требуется [bun](https://bun.sh) ≥ 1.1 и Node.js ≥ 20.
+
+```bash
+# 1. Зависимости
 bun install
 
-# база данных (prisma + sqlite)
-bun run db:generate
+# 2. Запуск в режиме разработки (http://localhost:3000)
+bun run dev
 
-# режим разработки
-bun run dev            # http://localhost:3000
+# 3. Сборка настольного приложения
+bun run build
+bash build-electron.sh     # → dist-electron/pdf-editor-2.0.0-x86_64/
 
-# OCR-сервис (отдельный процесс)
-cd mini-services/ocr-service && bun install && bun --hot index.ts
+# 4. Сборка RPM (нужен rpmbuild; проверено на rpm 4.14 — РЕД ОС 8)
+python3 build-rpm.py       # → pdf-editor-2.0.0-1.el8.x86_64.rpm
 ```
 
-### Сборка настольного приложения
+OCR-сервис запускается отдельно (используется приложением автоматически):
 
 ```bash
-bash build-electron.sh     # Next.js standalone + Electron → dist-electron/ + tar.gz
-python3 build-rpm.py       # RPM-пакет (нужен rpmbuild)
+cd mini-services/ocr-service
+bun install
+bun --hot index.ts         # порт 3011
 ```
 
-## 🧩 Структура проекта
+## 🧰 Технологии
+
+<div align="center">
+
+![Next.js](https://img.shields.io/badge/Next.js_16-black?style=for-the-badge&logo=next.js&logoColor=white)
+![React](https://img.shields.io/badge/React_19-149eca?style=for-the-badge&logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=for-the-badge&logo=typescript&logoColor=white)
+![Tailwind](https://img.shields.io/badge/Tailwind_4-38bdf8?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Electron](https://img.shields.io/badge/Electron_33-47848f?style=for-the-badge&logo=electron&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003b57?style=for-the-badge&logo=sqlite&logoColor=white)
+
+</div>
+
+| Компонент | Технология |
+|---|---|
+| Интерфейс | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui |
+| Рендеринг PDF | pdf.js (`pdfjs-dist`) |
+| Настольная оболочка | Electron 33 |
+| Настройки и сессии | Prisma + SQLite |
+| OCR | tesseract.js — мини-сервис `mini-services/ocr-service` (русский, английский) |
+| Экспорт | docx, xlsx |
+| Пакетный менеджер | bun |
+
+## 📁 Структура проекта
 
 ```
 ├── src/
-│   ├── app/                    # Next.js App Router (UI, API-маршруты)
-│   │   └── api/ocr/            # прокси к OCR-сервису
-│   └── components/pdf-editor/  # компоненты редактора
-│       ├── toolbar.tsx         # панель инструментов
-│       ├── canvas-viewer.tsx   # холст страниц, слои, рисование
-│       ├── thumbnail-sidebar.tsx
-│       └── save-as-dialog.tsx
-├── electron/                   # главный процесс Electron
-├── mini-services/ocr-service/  # OCR-микросервис (tesseract.js)
-├── ocr-data/                   # языковые модели OCR (rus, eng)
-├── prisma/                     # схема БД
-├── rpm/                        # spec и иконки для сборки RPM
-├── install.sh                  # установщик для РЕД ОС
-├── build-electron.sh           # сборка настольного пакета
-└── build-rpm.py                # сборка RPM через rpmbuild
+│   ├── app/                        # Страницы и API-маршруты (save, ocr, export)
+│   └── components/pdf-editor/      # Компоненты редактора: тулбар, канвас, миниатюры
+├── electron/                       # Главный процесс Electron (окно, меню, печать)
+├── mini-services/ocr-service/      # OCR-микросервис на tesseract (порт 3011)
+├── ocr-data/                       # Языковые модели tesseract (rus.traineddata, eng.traineddata)
+├── prisma/                         # Схема БД (настройки, сессии)
+├── rpm/                            # Spec-файл RPM (совместим с rpm 4.14 / РЕД ОС 8)
+├── public/                         # Иконки, статика
+├── docs/screenshots/               # Скриншоты для README
+├── install.sh                      # Установщик для РЕД ОС
+├── build-electron.sh               # Сборка Electron-пакета
+└── build-rpm.py                    # Сборка RPM
 ```
+
+## 🚀 Ключевые особенности реализации
+
+- **Правки не разрушают оригинал** — исходные страницы PDF рендерятся pdf.js, а все
+  изменения (перо, текст, подписи) живут в слоях поверх и сохраняются отдельно.
+  При экспорте слои накладываются на оригинал в нужном порядке.
+- **RPM собирается в окружении AlmaLinux 8** (rpm 4.14.3) — пакеты совместимы с РЕД ОС 8
+  и не содержат новых форматов тегов, которые не понимает системный rpm.
+- **OCR вынесен в мини-сервис** — распознавание не блокирует интерфейс редактора.
 
 ## 📄 Лицензия
 
-[MIT](LICENSE) © 2026 **flytimopheev**
+[MIT](LICENSE) © 2026 [flytimopheev](https://github.com/flytimopheev-sketch)
 
-Вопросы и предложения: <flytimopheev@gmail.com>
+Обратная связь: [flytimopheev@gmail.com](mailto:flytimopheev@gmail.com)
