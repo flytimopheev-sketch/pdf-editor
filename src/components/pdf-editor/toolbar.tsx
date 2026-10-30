@@ -704,22 +704,92 @@ function SearchBar() {
 function SignatureTemplatesPopover() {
   const {
     signatureTemplates, saveSignatureTemplate, removeSignatureTemplate,
-    clipboardFragment,
+    clipboardFragment, drawingStrokes, currentPage,
   } = usePdfEditorStore();
 
   const [open, setOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  // Есть ли на текущей странице нарисованные пером линии —
+  // из них тоже можно сохранить шаблон подписи
+  const hasDrawnSignature = drawingStrokes.some(
+    (s) => s.source === "primary" && s.pageIndex === currentPage && s.points.length >= 2
+  );
+
   const handleSaveTemplate = () => {
-    if (!clipboardFragment) return;
+    const st = usePdfEditorStore.getState();
+
+    // Вариант 1: сохраняем скопированный фрагмент
+    if (clipboardFragment) {
+      const name = prompt('Название подписи:', `Подпись ${signatureTemplates.length + 1}`);
+      if (!name) return;
+      saveSignatureTemplate({
+        id: `sig-${Date.now()}`,
+        name,
+        fragment: { ...clipboardFragment },
+        createdAt: Date.now(),
+      });
+      return;
+    }
+
+    // Вариант 2: сохраняем нарисованную пером подпись с текущей страницы
+    const strokes = st.drawingStrokes.filter(
+      (s) => s.source === "primary" && s.pageIndex === currentPage && s.points.length >= 2
+    );
+    if (strokes.length === 0) return;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of strokes) {
+      for (const p of s.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+    }
+    const pad = 6;
+    const w = maxX - minX + pad * 2;
+    const h = maxY - minY + pad * 2;
+    const quality = 4;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(w * quality));
+    canvas.height = Math.max(1, Math.round(h * quality));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(quality, quality);
+    ctx.translate(pad - minX, pad - minY);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const s of strokes) {
+      ctx.strokeStyle = s.color || "#000000";
+      ctx.lineWidth = s.width;
+      ctx.beginPath();
+      s.points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      ctx.stroke();
+    }
+    const imageData = canvas.toDataURL("image/png");
+
     const name = prompt('Название подписи:', `Подпись ${signatureTemplates.length + 1}`);
     if (!name) return;
+    const fragment = {
+      imageData,
+      x: minX - pad,
+      y: minY - pad,
+      width: w,
+      height: h,
+      sourceFileName: "Рисунок (перо)",
+      sourcePageIndex: currentPage,
+      sourcePageWidth: 595,
+      sourcePageHeight: 842,
+    };
     saveSignatureTemplate({
       id: `sig-${Date.now()}`,
       name,
-      fragment: { ...clipboardFragment },
+      fragment,
       createdAt: Date.now(),
     });
+    // Кладём в буфер — можно сразу вставить кнопкой «Вставить»
+    st.setClipboardFragment({ ...fragment });
   };
 
   const handlePasteTemplate = (template: SignatureTemplate) => {
@@ -805,7 +875,7 @@ function SignatureTemplatesPopover() {
           <button
             type="button"
             onClick={handleSaveTemplate}
-            disabled={!clipboardFragment}
+            disabled={!clipboardFragment && !hasDrawnSignature}
             className="text-xs text-sky-600 hover:text-sky-700 disabled:opacity-30 disabled:cursor-not-allowed font-medium"
           >
             Сохранить
@@ -815,7 +885,8 @@ function SignatureTemplatesPopover() {
           {signatureTemplates.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-slate-400">
               Нет сохранённых шаблонов.<br />
-              Скопируйте фрагмент и нажмите «Сохранить».
+              Скопируйте фрагмент или нарисуйте подпись пером<br />
+              и нажмите «Сохранить».
             </div>
           ) : (
             signatureTemplates.map((t) => (
