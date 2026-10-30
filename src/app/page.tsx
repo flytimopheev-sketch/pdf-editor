@@ -18,6 +18,7 @@ import {
   Clipboard, Loader2, GripVertical, X, Save,
   Crop, SunMedium, Palette, Info, Mail, User, Scale, Github,
 } from "lucide-react";
+import appPackage from "../../package.json";
 
 const FONT_MAP: Record<string, string> = {
   "Times New Roman": "TimesRoman",
@@ -318,7 +319,7 @@ function drawStickyOnCanvas(ctx: CanvasRenderingContext2D, note: StickyNote, ren
 
 interface CompositePageOptions {
   renderScale: number;
-  rotation: number; // normalized total rotation for the viewport
+  rotation: number; // поворот, сделанный пользователем (0/90/180/270 или произвольный)
   adjustment?: PageAdjustment | null;
   fragments?: PlacedFragment[];
   eraserStrokes?: EraserStroke[];
@@ -346,7 +347,11 @@ async function compositePageCanvas(
   } = opts;
 
   const pdfjsPage = await pdfJsDoc.getPage(pageNum);
-  const viewport = pdfjsPage.getViewport({ scale: renderScale, rotation });
+  // Полный поворот = встроенный /Rotate страницы + поворот пользователя.
+  // Сохранение обязано совпадать с тем, что пользователь видит в редакторе.
+  const built = ((((pdfjsPage.rotate ?? 0) % 360) + 360) % 360);
+  const totalRot = ((rotation + built) % 360 + 360) % 360;
+  const viewport = pdfjsPage.getViewport({ scale: renderScale, rotation: totalRot });
   const origViewport = pdfjsPage.getViewport({ scale: 1, rotation: 0 });
 
   const pageCanvas = document.createElement("canvas");
@@ -463,15 +468,15 @@ async function compositePageCanvas(
       let drawW = fp.width;
       let drawH = fp.height;
 
-      if (placedRot !== rotation) {
-        const t = transformCoordsForSave(fp.x, fp.y, fp.width, fp.height, placedRot, rotation, pw, ph);
+      if (placedRot !== totalRot) {
+        const t = transformCoordsForSave(fp.x, fp.y, fp.width, fp.height, placedRot, totalRot, pw, ph);
         drawX = t.x;
         drawY = t.y;
         drawW = t.w;
         drawH = t.h;
       }
 
-      const deltaRot = ((rotation - placedRot) % 360 + 360) % 360;
+      const deltaRot = ((totalRot - placedRot) % 360 + 360) % 360;
       if (deltaRot !== 0 && deltaRot % 90 === 0) {
         ctx.save();
         ctx.translate(
@@ -561,17 +566,20 @@ async function buildPdfBlob(targetSource: "primary" | "secondary"): Promise<Blob
       const pageStickyNotes = stickyNotes.filter((n) => n.pageIndex === i);
       const pageAdj = adjustments[i];
 
-      const hasModifications =
+      const hasLayers =
         pageFragments.length > 0 ||
         pageEraserStrokes.length > 0 ||
         pageDrawingStrokes.length > 0 ||
         pageAnnotations.length > 0 ||
         pageMarks.length > 0 ||
         pageStickyNotes.length > 0 ||
-        normalizedRot !== 0 ||
         !!pageAdj;
+      // Растровый режим обязателен при слоях правок и при произвольном угле
+      // (±1° и т.п.) — кратные 90° повороты делаются без растра, через /Rotate
+      const needsRaster =
+        hasLayers || (normalizedRot !== 0 && normalizedRot % 90 !== 0);
 
-      if (hasModifications) {
+      if (needsRaster) {
         // === IMAGE MODE: render page and bake all annotation layers ===
         const compCanvas = await compositePageCanvas(pdfJsDoc, i, {
           renderScale,
@@ -585,8 +593,14 @@ async function buildPdfBlob(targetSource: "primary" | "secondary"): Promise<Blob
           stickyNotes: pageStickyNotes,
         });
 
-        // Auto-crop white edges (useful for rotated pages)
-        const finalCanvas = normalizedRot !== 0 ? autoCropCanvas(compCanvas) : compCanvas;
+        // Края не обрезаем: страница после поворота на 90°/180°/270° должна
+        // остаться исходного размера, с теми же пустыми полями, что и в оригинале.
+        // Автообрезка нужна только для произвольных углов (±1° и т.п.),
+        // где при растровом повороте появляются белые углы по краям.
+        const finalCanvas =
+          normalizedRot !== 0 && normalizedRot % 90 !== 0
+            ? autoCropCanvas(compCanvas)
+            : compCanvas;
 
         const jpgDataUrl = finalCanvas.toDataURL("image/jpeg", 0.92);
         const jpgBytes = dataUrlToBytes(jpgDataUrl);
@@ -596,8 +610,17 @@ async function buildPdfBlob(targetSource: "primary" | "secondary"): Promise<Blob
         const img = await newDoc.embedJpg(jpgBytes);
         newPage.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
       } else {
-        // No modifications — copy page as-is from original PDF (preserves vector content)
+        // === VECTOR MODE: копия страницы без потери качества.
+        // Поворот на 90°/180°/270° записывается в метаданные /Rotate —
+        // страница остаётся исходного размера, края и поля не обрезаются,
+        // размер файла и чёткость текста сохраняются как в оригинале.
         const [copiedPage] = await newDoc.copyPages(pdfDoc, [i - 1]);
+        if (normalizedRot !== 0) {
+          const curRot = copiedPage.getRotation().angle;
+          copiedPage.setRotation(
+            degrees((((curRot + normalizedRot) % 360) + 360) % 360)
+          );
+        }
         newDoc.addPage(copiedPage);
       }
     }
@@ -1058,7 +1081,12 @@ async function autoCorrectCurrentPage() {
     const page = await pdfJsDoc.getPage(currentPage);
     const rot = pageRotations[currentPage] || 0;
     const normalizedRot = ((rot % 360) + 360) % 360;
-    const viewport = page.getViewport({ scale: renderScale, rotation: normalizedRot });
+    // Полный поворот = /Rotate страницы + поворот пользователя
+    const built = ((((page.rotate ?? 0) % 360) + 360) % 360);
+    const viewport = page.getViewport({
+      scale: renderScale,
+      rotation: ((normalizedRot + built) % 360 + 360) % 360,
+    });
 
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(viewport.width);
@@ -1387,8 +1415,13 @@ async function handlePrint() {
   try {
     const rotation = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
     const page = await pdfJsDoc.getPage(currentPage);
+    // Полный поворот = /Rotate страницы + поворот пользователя
+    const built = ((((page.rotate ?? 0) % 360) + 360) % 360);
     const scale = 2;
-    const viewport = page.getViewport({ scale, rotation });
+    const viewport = page.getViewport({
+      scale,
+      rotation: ((rotation + built) % 360 + 360) % 360,
+    });
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(viewport.width);
     canvas.height = Math.round(viewport.height);
@@ -1674,7 +1707,7 @@ export default function HomePage() {
                 </div>
                 <div className="absolute right-4 top-4 text-right text-white">
                   <p className="text-[9px] uppercase tracking-[0.2em] opacity-80 font-semibold">Версия</p>
-                  <p className="text-xl font-bold leading-none drop-shadow-sm">2.0.0</p>
+                  <p className="text-xl font-bold leading-none drop-shadow-sm">{appPackage.version}</p>
                 </div>
               </div>
               {/* Body */}
@@ -1725,7 +1758,7 @@ export default function HomePage() {
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Лицензия</span>
-                      <span className="block text-xs font-medium text-slate-700 truncate">MIT</span>
+                      <span className="block text-xs font-medium text-slate-700 truncate">{appPackage.license}</span>
                     </span>
                   </div>
                 </div>

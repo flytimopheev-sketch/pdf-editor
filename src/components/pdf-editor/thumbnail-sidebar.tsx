@@ -151,8 +151,10 @@ export function ThumbnailSidebar({
       const pageNum = renderQueueRef.current.shift()!;
       try {
         const page = await doc.getPage(pageNum);
+        // Полный поворот = /Rotate страницы + поворот пользователя (как в основном просмотре)
+        const built = ((((page.rotate ?? 0) % 360) + 360) % 360);
         const pageRot = (source === "primary" ? pageRotations[pageNum] : 0) || 0;
-        const normalizedRot = ((pageRot % 360) + 360) % 360;
+        const normalizedRot = (((pageRot + built) % 360) + 360) % 360;
         const viewport = page.getViewport({ scale: 0.3, rotation: normalizedRot });
         const canvas = document.createElement("canvas");
         canvas.width = viewport.width;

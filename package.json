@@ -1,5 +1,5 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
+  "name": "pdf-editor",
   "version": "2.0.0",
   "private": true,
   "scripts": {
@@ -99,5 +99,12 @@
   },
   "allowScripts": {
     "electron@33.4.11": true
+  },
+  "description": "Редактор PDF — настольный редактор PDF-документов для РЕД ОС",
+  "author": "flytimopheev <flytimopheev@gmail.com> (https://github.com/flytimopheev-sketch)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flytimopheev-sketch/pdf-editor.git"
   }
 }

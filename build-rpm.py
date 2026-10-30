@@ -54,6 +54,7 @@ def main() -> int:
         "--define", "_binary_payload w9.gzdio",   # gzip — совместимо с rpm 4.14 (РЕД ОС 8)
         "--define", "__os_install_post %{nil}",   # без strip/brp-скриптов
         "--define", "debug_package %{nil}",
+        "--define", "dist .el8",                  # имя пакета: pdf-editor-2.0.0-1.el8.x86_64.rpm
         str(SPEC),
     ]
     result = subprocess.run(cmd)

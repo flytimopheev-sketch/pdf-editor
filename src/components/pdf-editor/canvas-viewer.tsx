@@ -63,6 +63,9 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   const [rendering, setRendering] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [pageDims, setPageDims] = useState({ width: 0, height: 0 });
+  // Встроенный поворот страницы из PDF (/Rotate) — так страницу показывают
+  // проводник и другие просмотрщики. Без него документ открывается «боком».
+  const [builtInRot, setBuiltInRot] = useState(0);
   const [selectionRect, setSelectionRect] = useState<{
     startX: number;
     startY: number;
@@ -219,7 +222,9 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   }, [store.flatSearchItems, currentPage]);
 
   // ---------- Computed values ----------
-  const rotation = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
+  const userRotation = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
+  // Полный поворот отображения = встроенный /Rotate страницы + поворот от пользователя
+  const rotation = ((userRotation + builtInRot) % 360 + 360) % 360;
   const scale = zoom * 1.5;
 
   const currentAdjustment =
@@ -252,6 +257,19 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   }, [myFragments]);
 
   // ---------- Render PDF page to canvas (with bitmap cache) ----------
+  // Актуальный пользовательский поворот для renderPage (без зависимости от состояния builtInRot,
+  // чтобы определение /Rotate страницы не вызывало повторный рендер и гонку «same canvas»)
+  const userRotationRef = useRef(0);
+  userRotationRef.current = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
+  const builtInRotRef = useRef(0);
+  // Токен активного рендера: отменяет устаревшие вызовы, чтобы два render()
+  // не рисовали на один canvas одновременно
+  const renderTokenRef = useRef(0);
+  const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
+  // Свежая версия drawOverlays для renderPage (без добавления в зависимости —
+  // иначе страница перерисовывалась бы на каждое движение мыши)
+  const drawOverlaysRef = useRef<() => void>(() => {});
+
   const renderPage = useCallback(async () => {
     if (!doc || !canvasRef.current) return;
     // Self-heal: страница вне диапазона (например, после отмены добавленных страниц)
@@ -262,10 +280,25 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       return;
     }
     setRendering(true);
+    const token = ++renderTokenRef.current;
+    // Отменяем предыдущий незавершённый рендер этого canvas
+    if (renderTaskRef.current) {
+      try { renderTaskRef.current.cancel(); } catch { /* уже завершён */ }
+      renderTaskRef.current = null;
+    }
 
     try {
       const page = await doc.getPage(currentPage);
-      const viewport = page.getViewport({ scale: scale, rotation });
+      if (token !== renderTokenRef.current) return;
+      // Встроенный поворот страницы (/Rotate из PDF)
+      const built = ((((page.rotate ?? 0) % 360) + 360) % 360);
+      if (built !== builtInRotRef.current) {
+        builtInRotRef.current = built;
+        setBuiltInRot(built); // обновляет оверлеи (drawOverlays зависит от rotation)
+      }
+      // Полный поворот = /Rotate страницы + поворот пользователя
+      const totalRot = ((userRotationRef.current + built) % 360 + 360) % 360;
+      const viewport = page.getViewport({ scale: scale, rotation: totalRot });
       const canvas = canvasRef.current;
       canvas.width = viewport.width;
       canvas.height = viewport.height;
@@ -281,33 +314,44 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Check cache (docVersion guards against stale bitmaps after document changes)
-      const key = pageCacheKey(source, docVersion, currentPage, zoom, rotation);
+      const key = pageCacheKey(source, docVersion, currentPage, zoom, totalRot);
       const cached = getCachedBitmap(key);
       if (cached && cached.width === Math.round(viewport.width) && cached.height === Math.round(viewport.height)) {
         ctx.drawImage(cached, 0, 0);
       } else {
         // Render PDF page
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        const task = page.render({ canvasContext: ctx, viewport });
+        renderTaskRef.current = task;
+        try {
+          await task.promise;
+        } finally {
+          if (renderTaskRef.current === task) renderTaskRef.current = null;
+        }
+        if (token !== renderTokenRef.current) return;
         // Cache as ImageBitmap
         try {
           const bitmap = await createImageBitmap(canvas);
+          if (token !== renderTokenRef.current) return;
           setCachedBitmap(key, bitmap);
         } catch {
           // ImageBitmap not supported in some contexts, skip cache
         }
       }
 
-      if (overlayCanvasRef.current) {
+      if (overlayCanvasRef.current && token === renderTokenRef.current) {
         overlayCanvasRef.current.width = viewport.width;
         overlayCanvasRef.current.height = viewport.height;
-        drawOverlays();
+        drawOverlaysRef.current();
       }
     } catch (err) {
-      console.error("Error rendering page:", err);
+      // Отменённый рендер — не ошибка (пришёл новый запрос)
+      if (token === renderTokenRef.current) {
+        console.error("Error rendering page:", err);
+      }
     } finally {
-      setRendering(false);
+      if (token === renderTokenRef.current) setRendering(false);
     }
-  }, [doc, currentPage, zoom, rotation, source, scale, docVersion]);
+  }, [doc, currentPage, zoom, userRotation, source, scale, docVersion]);
 
   // ---------- Transform fragment coords between rotations ----------
   // Fragments are placed in viewport coords at a given rotation.
@@ -387,31 +431,29 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
     // --- Search highlighting ---
-    // Text content coords are PDF-space (y from bottom) — flip to canvas space
+    // Координаты текста/OCR — в базовой системе PDF (y от нижнего края).
+    // Переводим их в систему отображения с учётом полного поворота страницы.
     const pageH = pageDims.height;
     for (let i = 0; i < mySearchItems.length; i++) {
       const item = mySearchItems[i];
       const globalIndex = searchGlobalOffset + i;
       const isCurrent = globalIndex === store.searchCurrentMatchIndex;
+      const base = transformFragmentRotation(
+        item.x,
+        pageH - item.y - item.height,
+        item.width,
+        item.height,
+        0
+      );
       ctx.save();
       ctx.fillStyle = isCurrent
         ? "rgba(251, 146, 60, 0.45)"
         : "rgba(250, 204, 21, 0.35)";
-      ctx.fillRect(
-        item.x * scale,
-        (pageH - item.y - item.height) * scale,
-        item.width * scale,
-        item.height * scale
-      );
+      ctx.fillRect(base.x * scale, base.y * scale, base.w * scale, base.h * scale);
       if (isCurrent) {
         ctx.strokeStyle = "rgba(234, 88, 12, 0.9)";
         ctx.lineWidth = 2;
-        ctx.strokeRect(
-          item.x * scale,
-          (pageH - item.y - item.height) * scale,
-          item.width * scale,
-          item.height * scale
-        );
+        ctx.strokeRect(base.x * scale, base.y * scale, base.w * scale, base.h * scale);
       }
       ctx.restore();
     }
@@ -639,6 +681,8 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     transformFragmentRotation,
     rotation,
   ]);
+  // Держим ссылку на свежую версию drawOverlays для renderPage
+  drawOverlaysRef.current = drawOverlays;
 
   // Re-render page when deps change
   useEffect(() => {
@@ -1615,10 +1659,10 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
             </div>
           )}
 
-          {rotation !== 0 && (
+          {userRotation !== 0 && (
             <div className="absolute top-2 left-2 z-10">
               <div className="bg-amber-500/90 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
-                {rotation}°
+                {userRotation}°
               </div>
             </div>
           )}
