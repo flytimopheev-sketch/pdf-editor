@@ -220,6 +220,144 @@ function ManualAdjustPopover() {
   );
 }
 
+// ── PenSettingsPopover (цвет и толщина пера) ─────────────────────────
+
+function PenSettingsPopover() {
+  const { penColor, penThickness, setPenColor, setPenThickness } = usePdfEditorStore();
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Настройки пера"
+          aria-label="Настройки пера"
+          className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg ring-1 ring-black/[0.04] shadow-[0_1px_2px_rgba(0,0,0,0.04)] bg-teal-50/80 hover:bg-teal-100 text-teal-600 transition-all duration-150 hover:scale-[1.02]"
+        >
+          <Pen className="w-3.5 h-3.5" />
+          <span
+            className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-1 ring-white shadow-sm"
+            style={{ backgroundColor: penColor }}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-3 space-y-3" side="bottom">
+        <div>
+          <Label className="text-xs text-slate-500 mb-2 block">Цвет пера</Label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={penColor}
+              onChange={(e) => setPenColor(e.target.value)}
+              className="w-8 h-8 rounded cursor-pointer border-0"
+            />
+            <Input
+              value={penColor}
+              onChange={(e) => setPenColor(e.target.value)}
+              className="h-7 text-xs font-mono"
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-slate-600">Толщина</Label>
+            <span className="text-xs text-slate-400 tabular-nums">{penThickness}</span>
+          </div>
+          <Slider
+            min={1}
+            max={12}
+            step={0.5}
+            value={[penThickness]}
+            onValueChange={([v]) => setPenThickness(v)}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-slate-500">Предпросмотр</Label>
+          <div className="h-8 rounded-md border border-slate-200 bg-white flex items-center px-3">
+            <div
+              className="w-full rounded-full"
+              style={{
+                height: Math.max(2, Math.min(16, penThickness * 1.5)),
+                backgroundColor: penColor,
+              }}
+            />
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── EraserSettingsPopover (размер ластика) ───────────────────────────
+
+function EraserSettingsPopover() {
+  const { eraserSize, setEraserSize } = usePdfEditorStore();
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Настройки ластика"
+          aria-label="Настройки ластика"
+          className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg ring-1 ring-black/[0.04] shadow-[0_1px_2px_rgba(0,0,0,0.04)] bg-violet-50/80 hover:bg-violet-100 text-violet-600 transition-all duration-150 hover:scale-[1.02]"
+        >
+          <Eraser className="w-3.5 h-3.5" />
+          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 min-w-2.5 px-0.5 rounded-full bg-violet-500 text-white text-[7px] font-bold flex items-center justify-center ring-1 ring-white">
+            {Math.round(eraserSize)}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-3 space-y-3" side="bottom">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-slate-600">Размер ластика</Label>
+            <span className="text-xs text-slate-400 tabular-nums">{eraserSize}</span>
+          </div>
+          <Slider
+            min={5}
+            max={80}
+            step={1}
+            value={[eraserSize]}
+            onValueChange={([v]) => setEraserSize(v)}
+          />
+          <div className="flex gap-1 pt-1">
+            {[10, 25, 40, 60].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setEraserSize(s)}
+                className={[
+                  'flex-1 py-1 text-[10px] rounded transition-colors',
+                  eraserSize === s
+                    ? 'bg-violet-500 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                ].join(' ')}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-slate-500">Предпросмотр</Label>
+          <div className="h-14 rounded-md border border-slate-200 bg-white flex items-center justify-center">
+            <div
+              className="rounded-full ring-1 ring-slate-300"
+              style={{
+                width: Math.min(48, Math.max(5, eraserSize)),
+                height: Math.min(48, Math.max(5, eraserSize)),
+                backgroundColor: 'rgba(255, 255, 255, 1)',
+                boxShadow: '0 0 0 1px rgba(0,0,0,0.06) inset',
+              }}
+            />
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ── SearchBar ────────────────────────────────────────────────────
 
 type SearchStatus = "idle" | "searching" | "ocr" | "noresults" | "results";
@@ -1212,6 +1350,7 @@ export function Toolbar() {
             active={activeTool === 'eraser'}
             onClick={() => setActiveTool('eraser')}
           />
+          <EraserSettingsPopover />
           <ToolButton
             icon={<Pen className="w-3.5 h-3.5" />}
             label="Перо (P)"
@@ -1219,6 +1358,7 @@ export function Toolbar() {
             active={activeTool === 'pen'}
             onClick={() => setActiveTool('pen')}
           />
+          <PenSettingsPopover />
           <ToolButton
             icon={<Highlighter className="w-3.5 h-3.5" />}
             label="Выделение (H)"
@@ -1435,7 +1575,7 @@ export function Toolbar() {
           {/* ── 19. Export ───────────────────────────────────────── */}
           <ToolButton
             icon={<Printer className="w-3.5 h-3.5" />}
-            label="Печать текущей страницы"
+            label="Предпросмотр печати"
             colorGroup="export"
             onClick={() => window.dispatchEvent(new CustomEvent('pdf-print'))}
             disabled={!pdfFile}
@@ -1508,7 +1648,7 @@ export function Toolbar() {
               onClick={() => secondaryInputRef.current?.click()}
             >
               <FileText className="w-3.5 h-3.5" />
-              Источник фрагмента
+              Второй документ
             </Button>
           )}
 

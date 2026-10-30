@@ -130,7 +130,8 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   const [currentPenStroke, setCurrentPenStroke] = useState<
     Array<{ x: number; y: number }>
   >([]);
-  const [penWidth, setPenWidth] = useState(PEN_WIDTH);
+  const penWidth = store.penThickness ?? PEN_WIDTH;
+  const eraserSize = store.eraserSize ?? ERASER_BRUSH_SIZE;
 
   // Mark drawing state (highlight / underline / strikethrough)
   const [isMarkDrawing, setIsMarkDrawing] = useState(false);
@@ -476,7 +477,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     if (isErasing && currentEraserStroke.length >= 1) {
       ctx.save();
       ctx.fillStyle = "rgba(255, 255, 255, 1.0)";
-      const radius = (ERASER_BRUSH_SIZE / 2) * scale;
+      const radius = (eraserSize / 2) * scale;
       for (const pt of currentEraserStroke) {
         ctx.beginPath();
         ctx.arc(pt.x * scale, pt.y * scale, radius, 0, Math.PI * 2);
@@ -535,7 +536,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     // --- Current pen stroke being drawn ---
     if (isPenDrawing && currentPenStroke.length >= 2) {
       ctx.save();
-      ctx.strokeStyle = store.currentTextColor;
+      ctx.strokeStyle = store.penColor || store.currentTextColor;
       ctx.lineWidth = penWidth * scale;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -1127,7 +1128,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
         source,
         pageIndex: currentPage,
         points: [...currentEraserStroke],
-        brushSize: ERASER_BRUSH_SIZE,
+        brushSize: eraserSize,
       });
       setIsErasing(false);
       setCurrentEraserStroke([]);
@@ -1143,7 +1144,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
         source,
         pageIndex: currentPage,
         points: [...currentPenStroke],
-        color: store.currentTextColor,
+        color: store.penColor || store.currentTextColor,
         width: penWidth,
       });
     }

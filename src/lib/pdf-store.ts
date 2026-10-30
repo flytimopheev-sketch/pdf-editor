@@ -172,6 +172,9 @@ export interface PdfEditorState {
   currentFont: string;
   currentFontSize: number;
   currentTextColor: string;
+  penColor: string;      // цвет пера (инструмент «Перо»)
+  penThickness: number;  // толщина пера, в единицах PDF
+  eraserSize: number;    // размер ластика, в единицах PDF
   pickedColor: string;
   selectedFragment: FragmentData | null;
   clipboardFragment: FragmentData | null;
@@ -219,6 +222,9 @@ export interface PdfEditorState {
   setFont: (font: string) => void;
   setFontSize: (size: number) => void;
   setTextColor: (color: string) => void;
+  setPenColor: (color: string) => void;
+  setPenThickness: (width: number) => void;
+  setEraserSize: (size: number) => void;
   addTextAnnotation: (annotation: TextAnnotation) => void;
   updateTextAnnotation: (id: string, updates: Partial<TextAnnotation>) => void;
   removeTextAnnotation: (id: string) => void;
@@ -431,6 +437,7 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
   pageOrder: [], pageSelections: [], pageRotations: {},
   activeTool: null,
   textAnnotations: [], currentFont: "Times New Roman", currentFontSize: 14, currentTextColor: "#000000",
+  penColor: "#000000", penThickness: 2, eraserSize: 25,
   pickedColor: "#000000",
   selectedFragment: null, clipboardFragment: null,
   placedFragments: [],
@@ -609,6 +616,9 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
   setFont: (f) => set({ currentFont: f }),
   setFontSize: (s) => set({ currentFontSize: s }),
   setTextColor: (c) => set({ currentTextColor: c, pickedColor: c }),
+  setPenColor: (c) => set({ penColor: c }),
+  setPenThickness: (w) => set({ penThickness: w }),
+  setEraserSize: (size) => set({ eraserSize: size }),
 
   addTextAnnotation: (a) => {
     get().pushHistory("Добавление текста");
@@ -627,7 +637,7 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
     }));
   },
 
-  setPickedColor: (c) => set({ pickedColor: c, currentTextColor: c }),
+  setPickedColor: (c) => set({ pickedColor: c, currentTextColor: c, penColor: c }),
   setSelectedFragment: (f) => set({ selectedFragment: f }),
 
   copyFragment: () => {

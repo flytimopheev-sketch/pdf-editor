@@ -15,7 +15,7 @@ import tarfile
 from pathlib import Path
 
 APP_NAME = "pdf-editor"
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 RELEASE = "1"
 ARCH = "x86_64"
 

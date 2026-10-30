@@ -142,3 +142,34 @@
     border: none !important;
   }
 }
+
+/* ── Кастомный скроллбар ─────────────────────────────────────────── */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.35);
+  border-radius: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.6);
+}
+
+/* ── Тёмная тема (переключатель «Тема» в шапке) ──────────────────── */
+html.dark body {
+  background: #0f172a;
+}
+html.dark .app-chrome {
+  filter: invert(1) hue-rotate(180deg);
+  background: #e8edf5;
+}
+/* Содержимое документов (PDF-страницы, картинки) не инвертируем */
+html.dark .app-chrome canvas,
+html.dark .app-chrome img,
+html.dark .app-chrome iframe {
+  filter: invert(1) hue-rotate(180deg);
+}
