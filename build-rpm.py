@@ -15,7 +15,7 @@ import tarfile
 from pathlib import Path
 
 APP_NAME = "pdf-editor"
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 RELEASE = "1"
 ARCH = "x86_64"
 
@@ -62,7 +62,7 @@ def main() -> int:
         print("ОШИБКА: rpmbuild завершился с ошибкой")
         return result.returncode
 
-    rpms = sorted((TOPDIR / "RPMS" / ARCH).glob("*.rpm"))
+    rpms = sorted((TOPDIR / "RPMS" / ARCH).glob(f"{APP_NAME}-{VERSION}-*.rpm"))
     if not rpms:
         print("ОШИБКА: RPM не найден после сборки")
         return 1

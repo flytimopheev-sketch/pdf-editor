@@ -8,7 +8,7 @@
 
 Профессиональная работа с PDF: слои правок, аннотации, OCR и экспорт — полностью офлайн.
 
-[![Version](https://img.shields.io/badge/версия-2.0.0-10b981?style=flat-square)](https://github.com/flytimopheev-sketch/pdf-editor/releases)
+[![Version](https://img.shields.io/badge/версия-2.0.1-10b981?style=flat-square)](https://github.com/flytimopheev-sketch/pdf-editor/releases)
 [![License: MIT](https://img.shields.io/badge/лицензия-MIT-3b82f6?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/платформа-РЕД%20ОС%208%20·%20x86__64-f59e0b?style=flat-square)](#установка)
 [![Built with](https://img.shields.io/badge/Electron%20·%20Next.js-16-8b5cf6?style=flat-square)](#технологии)
@@ -41,7 +41,7 @@
 | 💽 **Автосохранение сессии** | Восстановление документов после перезапуска |
 | 🔒 **Офлайн** | Все данные остаются на вашем компьютере |
 
-## 🆕 Что нового в 2.0.0
+## 🆕 Что нового в 2.0.1
 
 - **Исправлено открытие документов с поворотом.** PDF, у которых ориентация задана
   метаданными `/Rotate` (в проводнике выглядит книжным, а хранится боком), теперь
@@ -58,7 +58,7 @@
 ### Способ 1 — RPM (РЕД ОС 8, рекомендуется)
 
 ```bash
-sudo dnf install ./pdf-editor-2.0.0-1.el8.x86_64.rpm
+sudo dnf install ./pdf-editor-2.0.1-1.el8.x86_64.rpm
 ```
 
 Пакет ставит приложение в `/opt/pdf-editor`, иконки всех размеров в `/usr/share/icons/hicolor/`
@@ -67,8 +67,8 @@ sudo dnf install ./pdf-editor-2.0.0-1.el8.x86_64.rpm
 ### Способ 2 — TAR.GZ
 
 ```bash
-tar xzf pdf-editor-2.0.0-x86_64.tar.gz
-cd pdf-editor-2.0.0-x86_64
+tar xzf pdf-editor-2.0.1-x86_64.tar.gz
+cd pdf-editor-2.0.1-x86_64
 sudo ./install.sh
 ```
 
@@ -93,10 +93,10 @@ bun run dev
 
 # 3. Сборка настольного приложения
 bun run build
-bash build-electron.sh     # → dist-electron/pdf-editor-2.0.0-x86_64/
+bash build-electron.sh     # → dist-electron/pdf-editor-2.0.1-x86_64/
 
 # 4. Сборка RPM (нужен rpmbuild; проверено на rpm 4.14 — РЕД ОС 8)
-python3 build-rpm.py       # → pdf-editor-2.0.0-1.el8.x86_64.rpm
+python3 build-rpm.py       # → pdf-editor-2.0.1-1.el8.x86_64.rpm
 ```
 
 OCR-сервис запускается отдельно (используется приложением автоматически):
