@@ -22,12 +22,15 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
 import { usePdfEditorStore, FONT_LIST } from '@/lib/pdf-store';
 import { convertAndOpenImages } from '@/lib/image-to-pdf';
 import { ocrPage } from '@/lib/ocr-client';
 import { useToast } from '@/hooks/use-toast';
 import type {
-  FlatSearchItem, SignatureTemplate, SearchMatch, TextLineItem, OcrWordItem,
+  FlatSearchItem, SignatureTemplate, SearchMatch, TextLineItem, OcrWordItem, FragmentData,
 } from '@/lib/pdf-store';
 
 // ── Style System ──────────────────────────────────────────────────────
@@ -85,6 +88,9 @@ function ToolButton({ icon, label, active, onClick, disabled, colorGroup = 'tool
           type="button"
           disabled={disabled}
           onClick={onClick}
+          aria-label={label}
+          aria-pressed={active}
+          title={label}
           className={[
             'inline-flex items-center justify-center w-8 h-8 rounded-lg',
             'ring-1 ring-black/[0.04] shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
@@ -214,144 +220,6 @@ function ManualAdjustPopover() {
           <Button size="sm" variant="ghost" onClick={handleReset} className="h-7 text-xs text-slate-400">
             Сброс
           </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ── PenSettingsPopover (цвет и толщина пера) ─────────────────────────
-
-function PenSettingsPopover() {
-  const { penColor, penThickness, setPenColor, setPenThickness } = usePdfEditorStore();
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title="Настройки пера"
-          aria-label="Настройки пера"
-          className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg ring-1 ring-black/[0.04] shadow-[0_1px_2px_rgba(0,0,0,0.04)] bg-teal-50/80 hover:bg-teal-100 text-teal-600 transition-all duration-150 hover:scale-[1.02]"
-        >
-          <Pen className="w-3.5 h-3.5" />
-          <span
-            className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-1 ring-white shadow-sm"
-            style={{ backgroundColor: penColor }}
-          />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-3 space-y-3" side="bottom">
-        <div>
-          <Label className="text-xs text-slate-500 mb-2 block">Цвет пера</Label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={penColor}
-              onChange={(e) => setPenColor(e.target.value)}
-              className="w-8 h-8 rounded cursor-pointer border-0"
-            />
-            <Input
-              value={penColor}
-              onChange={(e) => setPenColor(e.target.value)}
-              className="h-7 text-xs font-mono"
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs text-slate-600">Толщина</Label>
-            <span className="text-xs text-slate-400 tabular-nums">{penThickness}</span>
-          </div>
-          <Slider
-            min={1}
-            max={12}
-            step={0.5}
-            value={[penThickness]}
-            onValueChange={([v]) => setPenThickness(v)}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-slate-500">Предпросмотр</Label>
-          <div className="h-8 rounded-md border border-slate-200 bg-white flex items-center px-3">
-            <div
-              className="w-full rounded-full"
-              style={{
-                height: Math.max(2, Math.min(16, penThickness * 1.5)),
-                backgroundColor: penColor,
-              }}
-            />
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-// ── EraserSettingsPopover (размер ластика) ───────────────────────────
-
-function EraserSettingsPopover() {
-  const { eraserSize, setEraserSize } = usePdfEditorStore();
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          title="Настройки ластика"
-          aria-label="Настройки ластика"
-          className="relative inline-flex items-center justify-center w-8 h-8 rounded-lg ring-1 ring-black/[0.04] shadow-[0_1px_2px_rgba(0,0,0,0.04)] bg-violet-50/80 hover:bg-violet-100 text-violet-600 transition-all duration-150 hover:scale-[1.02]"
-        >
-          <Eraser className="w-3.5 h-3.5" />
-          <span className="absolute -bottom-0.5 -right-0.5 h-2.5 min-w-2.5 px-0.5 rounded-full bg-violet-500 text-white text-[7px] font-bold flex items-center justify-center ring-1 ring-white">
-            {Math.round(eraserSize)}
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-3 space-y-3" side="bottom">
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs text-slate-600">Размер ластика</Label>
-            <span className="text-xs text-slate-400 tabular-nums">{eraserSize}</span>
-          </div>
-          <Slider
-            min={5}
-            max={80}
-            step={1}
-            value={[eraserSize]}
-            onValueChange={([v]) => setEraserSize(v)}
-          />
-          <div className="flex gap-1 pt-1">
-            {[10, 25, 40, 60].map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setEraserSize(s)}
-                className={[
-                  'flex-1 py-1 text-[10px] rounded transition-colors',
-                  eraserSize === s
-                    ? 'bg-violet-500 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
-                ].join(' ')}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs text-slate-500">Предпросмотр</Label>
-          <div className="h-14 rounded-md border border-slate-200 bg-white flex items-center justify-center">
-            <div
-              className="rounded-full ring-1 ring-slate-300"
-              style={{
-                width: Math.min(48, Math.max(5, eraserSize)),
-                height: Math.min(48, Math.max(5, eraserSize)),
-                backgroundColor: 'rgba(255, 255, 255, 1)',
-                boxShadow: '0 0 0 1px rgba(0,0,0,0.06) inset',
-              }}
-            />
-          </div>
         </div>
       </PopoverContent>
     </Popover>
@@ -704,42 +572,27 @@ function SearchBar() {
 function SignatureTemplatesPopover() {
   const {
     signatureTemplates, saveSignatureTemplate, removeSignatureTemplate,
-    clipboardFragment, drawingStrokes, currentPage,
+    clipboardFragment, selectedFragment, setClipboardFragment,
+    drawingStrokes, currentPage,
   } = usePdfEditorStore();
+  const { toast } = useToast();
 
   const [open, setOpen] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [drawnPreview, setDrawnPreview] = useState<FragmentData | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // Есть ли на текущей странице нарисованные пером линии —
-  // из них тоже можно сохранить шаблон подписи
-  const hasDrawnSignature = drawingStrokes.some(
-    (s) => s.source === "primary" && s.pageIndex === currentPage && s.points.length >= 2
+  // Нарисованные пером штрихи на текущей странице — из них тоже можно собрать подпись
+  const drawnStrokes = drawingStrokes.filter(
+    (s) => s.source === 'primary' && s.pageIndex === currentPage && s.points.length >= 2
   );
 
-  const handleSaveTemplate = () => {
-    const st = usePdfEditorStore.getState();
-
-    // Вариант 1: сохраняем скопированный фрагмент
-    if (clipboardFragment) {
-      const name = prompt('Название подписи:', `Подпись ${signatureTemplates.length + 1}`);
-      if (!name) return;
-      saveSignatureTemplate({
-        id: `sig-${Date.now()}`,
-        name,
-        fragment: { ...clipboardFragment },
-        createdAt: Date.now(),
-      });
-      return;
-    }
-
-    // Вариант 2: сохраняем нарисованную пером подпись с текущей страницы
-    const strokes = st.drawingStrokes.filter(
-      (s) => s.source === "primary" && s.pageIndex === currentPage && s.points.length >= 2
-    );
-    if (strokes.length === 0) return;
-
+  /** Собрать фрагмент подписи из нарисованных пером штрихов (bbox + рендер в PNG) */
+  const buildDrawnFragment = (): FragmentData | null => {
+    if (drawnStrokes.length === 0) return null;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const s of strokes) {
+    for (const s of drawnStrokes) {
       for (const p of s.points) {
         if (p.x < minX) minX = p.x;
         if (p.y < minY) minY = p.y;
@@ -751,45 +604,77 @@ function SignatureTemplatesPopover() {
     const w = maxX - minX + pad * 2;
     const h = maxY - minY + pad * 2;
     const quality = 4;
-    const canvas = document.createElement("canvas");
+    const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(w * quality));
     canvas.height = Math.max(1, Math.round(h * quality));
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
     ctx.scale(quality, quality);
     ctx.translate(pad - minX, pad - minY);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    for (const s of strokes) {
-      ctx.strokeStyle = s.color || "#000000";
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const s of drawnStrokes) {
+      ctx.strokeStyle = s.color || '#111827';
       ctx.lineWidth = s.width;
       ctx.beginPath();
       s.points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
       ctx.stroke();
     }
-    const imageData = canvas.toDataURL("image/png");
-
-    const name = prompt('Название подписи:', `Подпись ${signatureTemplates.length + 1}`);
-    if (!name) return;
-    const fragment = {
-      imageData,
+    return {
+      imageData: canvas.toDataURL('image/png'),
       x: minX - pad,
       y: minY - pad,
       width: w,
       height: h,
-      sourceFileName: "Рисунок (перо)",
+      sourceFileName: 'Рисунок (перо)',
       sourcePageIndex: currentPage,
       sourcePageWidth: 595,
       sourcePageHeight: 842,
     };
+  };
+
+  // Что сохраняем: буфер → выделенный фрагмент → нарисованная пером подпись
+  const fragmentToSave: FragmentData | null = clipboardFragment || selectedFragment || drawnPreview;
+
+  const openSaveDialog = () => {
+    if (!clipboardFragment && selectedFragment) {
+      // Фрагмент выделен, но не скопирован — копируем автоматически
+      setClipboardFragment({ ...selectedFragment });
+    }
+    if (!clipboardFragment && !selectedFragment) {
+      // Попробуем собрать подпись из нарисованных пером штрихов
+      const drawn = buildDrawnFragment();
+      if (!drawn) {
+        toast({
+          title: 'Нечего сохранять',
+          description: 'Выделите фрагмент (S) и скопируйте (Ctrl+C) или нарисуйте подпись пером (P), затем нажмите «Сохранить».',
+        });
+        return;
+      }
+      setDrawnPreview(drawn);
+    }
+    setTemplateName(`Подпись ${signatureTemplates.length + 1}`);
+    setSaveDialogOpen(true);
+  };
+
+  const confirmSaveTemplate = () => {
+    const name = templateName.trim();
+    if (!name) return;
+    const frag = clipboardFragment || selectedFragment || drawnPreview;
+    if (!frag) {
+      toast({ title: 'Нечего сохранять', description: 'Сначала выделите фрагмент или нарисуйте подпись пером.' });
+      setSaveDialogOpen(false);
+      return;
+    }
     saveSignatureTemplate({
       id: `sig-${Date.now()}`,
       name,
-      fragment,
+      fragment: { ...frag },
       createdAt: Date.now(),
     });
-    // Кладём в буфер — можно сразу вставить кнопкой «Вставить»
-    st.setClipboardFragment({ ...fragment });
+    toast({ title: 'Подпись сохранена', description: `«${name}» добавлена в шаблоны подписей.` });
+    setSaveDialogOpen(false);
+    setDrawnPreview(null);
   };
 
   const handlePasteTemplate = (template: SignatureTemplate) => {
@@ -869,14 +754,18 @@ function SignatureTemplatesPopover() {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-slate-700">Шаблоны подписей</span>
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-              localStorage (PNG)
+              {signatureTemplates.length}
             </Badge>
           </div>
           <button
             type="button"
-            onClick={handleSaveTemplate}
-            disabled={!clipboardFragment && !hasDrawnSignature}
-            className="text-xs text-sky-600 hover:text-sky-700 disabled:opacity-30 disabled:cursor-not-allowed font-medium"
+            onClick={openSaveDialog}
+            className={[
+              'text-xs font-medium px-2 py-1 rounded-md transition-colors',
+              fragmentToSave
+                ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                : 'text-slate-500 hover:bg-slate-100',
+            ].join(' ')}
           >
             Сохранить
           </button>
@@ -885,8 +774,8 @@ function SignatureTemplatesPopover() {
           {signatureTemplates.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-slate-400">
               Нет сохранённых шаблонов.<br />
-              Скопируйте фрагмент или нарисуйте подпись пером<br />
-              и нажмите «Сохранить».
+              Выделите фрагмент, скопируйте (Ctrl+C)
+              или нарисуйте подпись пером — и нажмите «Сохранить».
             </div>
           ) : (
             signatureTemplates.map((t) => (
@@ -955,6 +844,65 @@ function SignatureTemplatesPopover() {
           />
         </div>
       </PopoverContent>
+
+      {/* Диалог сохранения шаблона подписи — вместо window.prompt, который не работает в Electron */}
+      <Dialog
+        open={saveDialogOpen}
+        onOpenChange={(o) => {
+          setSaveDialogOpen(o);
+          if (!o) setDrawnPreview(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Сохранить в шаблоны подписей</DialogTitle>
+            <DialogDescription className="sr-only">
+              Введите название и подтвердите сохранение выделенного фрагмента в шаблоны подписей.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {fragmentToSave?.imageData && (
+              <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white p-3">
+                <img
+                  src={fragmentToSave.imageData}
+                  alt="Предпросмотр подписи"
+                  className="max-h-24 object-contain"
+                />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="signature-template-name" className="text-xs text-slate-500">
+                Название подписи
+              </Label>
+              <Input
+                id="signature-template-name"
+                autoFocus
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    confirmSaveTemplate();
+                  }
+                }}
+                placeholder="Например: Подпись директора"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button
+              onClick={confirmSaveTemplate}
+              disabled={!templateName.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Popover>
   );
 }
@@ -1103,6 +1051,103 @@ function HistoryPanel() {
           <p className="text-[10px] text-slate-400 leading-relaxed">
             Клик по слою — вернуться к этому состоянию. «Сохранить» вшивает все слои в PDF.
           </p>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ── PenEraserSettings (настройки пера и ластика) ─────────────────────
+
+function PenEraserSettings() {
+  const { penWidth, eraserSize, setPenWidth, setEraserSize, currentTextColor, setTextColor } = usePdfEditorStore();
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Настройки пера и ластика"
+          aria-label="Настройки пера и ластика"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg ring-1 ring-black/[0.04] shadow-[0_1px_2px_rgba(0,0,0,0.04)] bg-teal-50/80 hover:bg-teal-100 text-teal-600 transition-all duration-150 hover:scale-[1.02]"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-60 p-3 space-y-4" side="bottom">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-xs text-slate-500 flex items-center gap-1.5">
+              <Pen className="w-3 h-3" /> Толщина пера
+            </Label>
+            <span className="text-[10px] font-mono text-slate-400">{penWidth.toFixed(1)}</span>
+          </div>
+          <Slider
+            value={[penWidth]}
+            min={0.5}
+            max={20}
+            step={0.5}
+            onValueChange={(v) => setPenWidth(v[0])}
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <Label className="text-[10px] text-slate-400">Цвет пера</Label>
+            <input
+              type="color"
+              value={currentTextColor}
+              onChange={(e) => setTextColor(e.target.value)}
+              className="w-7 h-7 rounded cursor-pointer border border-slate-200"
+            />
+            <div className="flex-1 flex items-center justify-end gap-1">
+              {[1, 2, 4, 8].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setPenWidth(w)}
+                  className={[
+                    'h-7 w-7 rounded-md flex items-center justify-center transition-colors',
+                    penWidth === w ? 'bg-teal-100 ring-1 ring-teal-300' : 'hover:bg-slate-100',
+                  ].join(' ')}
+                  title={`${w} pt`}
+                >
+                  <span
+                    className="rounded-full bg-slate-700"
+                    style={{ width: Math.min(10, w + 2), height: Math.min(10, w + 2) }}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <Separator />
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-xs text-slate-500 flex items-center gap-1.5">
+              <Eraser className="w-3 h-3" /> Размер ластика
+            </Label>
+            <span className="text-[10px] font-mono text-slate-400">{eraserSize}</span>
+          </div>
+          <Slider
+            value={[eraserSize]}
+            min={2}
+            max={60}
+            step={1}
+            onValueChange={(v) => setEraserSize(v[0])}
+          />
+          <div className="mt-2 flex items-center justify-end gap-1">
+            {[6, 12, 25, 40].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setEraserSize(s)}
+                className={[
+                  'h-7 px-2 rounded-md text-[10px] font-medium transition-colors',
+                  eraserSize === s ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-300' : 'text-slate-500 hover:bg-slate-100',
+                ].join(' ')}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         </div>
       </PopoverContent>
     </Popover>
@@ -1421,7 +1466,6 @@ export function Toolbar() {
             active={activeTool === 'eraser'}
             onClick={() => setActiveTool('eraser')}
           />
-          <EraserSettingsPopover />
           <ToolButton
             icon={<Pen className="w-3.5 h-3.5" />}
             label="Перо (P)"
@@ -1429,7 +1473,7 @@ export function Toolbar() {
             active={activeTool === 'pen'}
             onClick={() => setActiveTool('pen')}
           />
-          <PenSettingsPopover />
+          <PenEraserSettings />
           <ToolButton
             icon={<Highlighter className="w-3.5 h-3.5" />}
             label="Выделение (H)"
@@ -1646,7 +1690,7 @@ export function Toolbar() {
           {/* ── 19. Export ───────────────────────────────────────── */}
           <ToolButton
             icon={<Printer className="w-3.5 h-3.5" />}
-            label="Предпросмотр печати"
+            label="Печать текущей страницы"
             colorGroup="export"
             onClick={() => window.dispatchEvent(new CustomEvent('pdf-print'))}
             disabled={!pdfFile}

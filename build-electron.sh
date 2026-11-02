@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 BUILD_DIR="$PROJECT_DIR/dist-electron"
 APP_NAME="pdf-editor"
-VERSION="2.0.2"
+VERSION="2.0.4"
 ARCH="x86_64"
 PACKAGE_NAME="$APP_NAME-$VERSION-$ARCH"
 PACKAGE_DIR="$BUILD_DIR/$PACKAGE_NAME"
@@ -162,8 +162,19 @@ UNINSTALL
 chmod +x "$PACKAGE_DIR/uninstall.sh"
 
 # Copy icons into package (for install.sh and RPM)
+# Новый красивый логотип: собираем плоский набор icons/pdf-editor-<size>.png
+# из сгенерированного hicolor-набора в public/icons
 mkdir -p "$PACKAGE_DIR/icons"
-cp "$PROJECT_DIR/rpm/icons/"*.png "$PACKAGE_DIR/icons/"
+for size in 16 24 32 48 64 128 256 512; do
+  ICON_SRC="$PROJECT_DIR/public/icons/${size}x${size}/apps/pdf-editor.png"
+  if [ -f "$ICON_SRC" ]; then
+    cp "$ICON_SRC" "$PACKAGE_DIR/icons/pdf-editor-${size}.png"
+  else
+    echo "  WARNING: иконка $ICON_SRC не найдена"
+  fi
+done
+# Пиксельная иконка окна/ярлыка (современный лого)
+cp "$PROJECT_DIR/public/app-icon-square.png" "$PACKAGE_DIR/icons/" 2>/dev/null || true
 
 # Fix ownership/permissions for RPM reproducibility
 find "$PACKAGE_DIR" -type d -exec chmod 755 {} \;

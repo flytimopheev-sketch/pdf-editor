@@ -28,8 +28,7 @@ interface CanvasViewerProps {
   source: "primary" | "secondary";
 }
 
-const ERASER_BRUSH_SIZE = 25;
-const PEN_WIDTH = 2;
+// Толщина пера и размер ластика хранятся в глобальном store (настройки в тулбаре)
 const STICKY_COLORS: StickyNote["color"][] = ["yellow", "green", "pink", "blue", "orange"];
 const STICKY_COLOR_MAP: Record<StickyNote["color"], string> = {
   yellow: "#fef08a",
@@ -63,9 +62,6 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   const [rendering, setRendering] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [pageDims, setPageDims] = useState({ width: 0, height: 0 });
-  // Встроенный поворот страницы из PDF (/Rotate) — так страницу показывают
-  // проводник и другие просмотрщики. Без него документ открывается «боком».
-  const [builtInRot, setBuiltInRot] = useState(0);
   const [selectionRect, setSelectionRect] = useState<{
     startX: number;
     startY: number;
@@ -130,8 +126,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   const [currentPenStroke, setCurrentPenStroke] = useState<
     Array<{ x: number; y: number }>
   >([]);
-  const penWidth = store.penThickness ?? PEN_WIDTH;
-  const eraserSize = store.eraserSize ?? ERASER_BRUSH_SIZE;
+  // Толщина пера и ластика теперь в глобальном store — настраиваются в тулбаре
 
   // Mark drawing state (highlight / underline / strikethrough)
   const [isMarkDrawing, setIsMarkDrawing] = useState(false);
@@ -223,9 +218,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   }, [store.flatSearchItems, currentPage]);
 
   // ---------- Computed values ----------
-  const userRotation = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
-  // Полный поворот отображения = встроенный /Rotate страницы + поворот от пользователя
-  const rotation = ((userRotation + builtInRot) % 360 + 360) % 360;
+  const rotation = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
   const scale = zoom * 1.5;
 
   const currentAdjustment =
@@ -258,19 +251,6 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   }, [myFragments]);
 
   // ---------- Render PDF page to canvas (with bitmap cache) ----------
-  // Актуальный пользовательский поворот для renderPage (без зависимости от состояния builtInRot,
-  // чтобы определение /Rotate страницы не вызывало повторный рендер и гонку «same canvas»)
-  const userRotationRef = useRef(0);
-  userRotationRef.current = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
-  const builtInRotRef = useRef(0);
-  // Токен активного рендера: отменяет устаревшие вызовы, чтобы два render()
-  // не рисовали на один canvas одновременно
-  const renderTokenRef = useRef(0);
-  const renderTaskRef = useRef<{ cancel: () => void } | null>(null);
-  // Свежая версия drawOverlays для renderPage (без добавления в зависимости —
-  // иначе страница перерисовывалась бы на каждое движение мыши)
-  const drawOverlaysRef = useRef<() => void>(() => {});
-
   const renderPage = useCallback(async () => {
     if (!doc || !canvasRef.current) return;
     // Self-heal: страница вне диапазона (например, после отмены добавленных страниц)
@@ -281,25 +261,13 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       return;
     }
     setRendering(true);
-    const token = ++renderTokenRef.current;
-    // Отменяем предыдущий незавершённый рендер этого canvas
-    if (renderTaskRef.current) {
-      try { renderTaskRef.current.cancel(); } catch { /* уже завершён */ }
-      renderTaskRef.current = null;
-    }
 
     try {
       const page = await doc.getPage(currentPage);
-      if (token !== renderTokenRef.current) return;
-      // Встроенный поворот страницы (/Rotate из PDF)
-      const built = ((((page.rotate ?? 0) % 360) + 360) % 360);
-      if (built !== builtInRotRef.current) {
-        builtInRotRef.current = built;
-        setBuiltInRot(built); // обновляет оверлеи (drawOverlays зависит от rotation)
-      }
-      // Полный поворот = /Rotate страницы + поворот пользователя
-      const totalRot = ((userRotationRef.current + built) % 360 + 360) % 360;
-      const viewport = page.getViewport({ scale: scale, rotation: totalRot });
+      // Учитываем /Rotate метаданные страницы: итог = метаданные + пользовательский
+      const baseRotation = ((page.rotate || 0) % 360 + 360) % 360;
+      const totalRotation = ((baseRotation + rotation) % 360 + 360) % 360;
+      const viewport = page.getViewport({ scale: scale, rotation: totalRotation });
       const canvas = canvasRef.current;
       canvas.width = viewport.width;
       canvas.height = viewport.height;
@@ -315,44 +283,33 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Check cache (docVersion guards against stale bitmaps after document changes)
-      const key = pageCacheKey(source, docVersion, currentPage, zoom, totalRot);
+      const key = pageCacheKey(source, docVersion, currentPage, zoom, totalRotation);
       const cached = getCachedBitmap(key);
       if (cached && cached.width === Math.round(viewport.width) && cached.height === Math.round(viewport.height)) {
         ctx.drawImage(cached, 0, 0);
       } else {
         // Render PDF page
-        const task = page.render({ canvasContext: ctx, viewport });
-        renderTaskRef.current = task;
-        try {
-          await task.promise;
-        } finally {
-          if (renderTaskRef.current === task) renderTaskRef.current = null;
-        }
-        if (token !== renderTokenRef.current) return;
+        await page.render({ canvasContext: ctx, viewport }).promise;
         // Cache as ImageBitmap
         try {
           const bitmap = await createImageBitmap(canvas);
-          if (token !== renderTokenRef.current) return;
           setCachedBitmap(key, bitmap);
         } catch {
           // ImageBitmap not supported in some contexts, skip cache
         }
       }
 
-      if (overlayCanvasRef.current && token === renderTokenRef.current) {
+      if (overlayCanvasRef.current) {
         overlayCanvasRef.current.width = viewport.width;
         overlayCanvasRef.current.height = viewport.height;
-        drawOverlaysRef.current();
+        drawOverlays();
       }
     } catch (err) {
-      // Отменённый рендер — не ошибка (пришёл новый запрос)
-      if (token === renderTokenRef.current) {
-        console.error("Error rendering page:", err);
-      }
+      console.error("Error rendering page:", err);
     } finally {
-      if (token === renderTokenRef.current) setRendering(false);
+      setRendering(false);
     }
-  }, [doc, currentPage, zoom, userRotation, source, scale, docVersion]);
+  }, [doc, currentPage, zoom, rotation, source, scale, docVersion]);
 
   // ---------- Transform fragment coords between rotations ----------
   // Fragments are placed in viewport coords at a given rotation.
@@ -432,29 +389,31 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
     // --- Search highlighting ---
-    // Координаты текста/OCR — в базовой системе PDF (y от нижнего края).
-    // Переводим их в систему отображения с учётом полного поворота страницы.
+    // Text content coords are PDF-space (y from bottom) — flip to canvas space
     const pageH = pageDims.height;
     for (let i = 0; i < mySearchItems.length; i++) {
       const item = mySearchItems[i];
       const globalIndex = searchGlobalOffset + i;
       const isCurrent = globalIndex === store.searchCurrentMatchIndex;
-      const base = transformFragmentRotation(
-        item.x,
-        pageH - item.y - item.height,
-        item.width,
-        item.height,
-        0
-      );
       ctx.save();
       ctx.fillStyle = isCurrent
         ? "rgba(251, 146, 60, 0.45)"
         : "rgba(250, 204, 21, 0.35)";
-      ctx.fillRect(base.x * scale, base.y * scale, base.w * scale, base.h * scale);
+      ctx.fillRect(
+        item.x * scale,
+        (pageH - item.y - item.height) * scale,
+        item.width * scale,
+        item.height * scale
+      );
       if (isCurrent) {
         ctx.strokeStyle = "rgba(234, 88, 12, 0.9)";
         ctx.lineWidth = 2;
-        ctx.strokeRect(base.x * scale, base.y * scale, base.w * scale, base.h * scale);
+        ctx.strokeRect(
+          item.x * scale,
+          (pageH - item.y - item.height) * scale,
+          item.width * scale,
+          item.height * scale
+        );
       }
       ctx.restore();
     }
@@ -477,7 +436,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     if (isErasing && currentEraserStroke.length >= 1) {
       ctx.save();
       ctx.fillStyle = "rgba(255, 255, 255, 1.0)";
-      const radius = (eraserSize / 2) * scale;
+      const radius = (store.eraserSize / 2) * scale;
       for (const pt of currentEraserStroke) {
         ctx.beginPath();
         ctx.arc(pt.x * scale, pt.y * scale, radius, 0, Math.PI * 2);
@@ -536,8 +495,8 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     // --- Current pen stroke being drawn ---
     if (isPenDrawing && currentPenStroke.length >= 2) {
       ctx.save();
-      ctx.strokeStyle = store.penColor || store.currentTextColor;
-      ctx.lineWidth = penWidth * scale;
+      ctx.strokeStyle = store.currentTextColor;
+      ctx.lineWidth = store.penWidth * scale;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
@@ -671,7 +630,8 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     currentEraserStroke,
     isPenDrawing,
     currentPenStroke,
-    penWidth,
+    store.penWidth,
+    store.eraserSize,
     store.currentTextColor,
     activeTool,
     mySearchItems,
@@ -682,8 +642,6 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     transformFragmentRotation,
     rotation,
   ]);
-  // Держим ссылку на свежую версию drawOverlays для renderPage
-  drawOverlaysRef.current = drawOverlays;
 
   // Re-render page when deps change
   useEffect(() => {
@@ -765,7 +723,10 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       try {
         const page = await doc.getPage(currentPage);
         const highScale = 3;
-        const viewport = page.getViewport({ scale: highScale, rotation });
+        // Рендерим в той же системе координат, что и основной вид (с /Rotate)
+        const baseRotation = ((page.rotate || 0) % 360 + 360) % 360;
+        const totalRotation = ((baseRotation + rotation) % 360 + 360) % 360;
+        const viewport = page.getViewport({ scale: highScale, rotation: totalRotation });
 
         const offscreen = document.createElement("canvas");
         offscreen.width = Math.round(viewport.width);
@@ -797,7 +758,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
         if (!tempCtx) return null;
         tempCtx.putImageData(imageData, 0, 0);
 
-        const origViewport = page.getViewport({ scale: 1, rotation });
+        const origViewport = page.getViewport({ scale: 1, rotation: totalRotation });
 
         const dataUrl = tempCanvas.toDataURL("image/png");
         const img = new Image();
@@ -1128,7 +1089,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
         source,
         pageIndex: currentPage,
         points: [...currentEraserStroke],
-        brushSize: eraserSize,
+        brushSize: store.eraserSize,
       });
       setIsErasing(false);
       setCurrentEraserStroke([]);
@@ -1144,8 +1105,8 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
         source,
         pageIndex: currentPage,
         points: [...currentPenStroke],
-        color: store.penColor || store.currentTextColor,
-        width: penWidth,
+        color: store.currentTextColor,
+        width: store.penWidth,
       });
     }
     setIsPenDrawing(false);
@@ -1192,7 +1153,8 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
               }
 
               const page = await doc?.getPage(currentPage);
-              const origViewport = page?.getViewport({ scale: 1, rotation });
+              const baseRot = ((page?.rotate || 0) % 360 + 360) % 360;
+              const origViewport = page?.getViewport({ scale: 1, rotation: ((baseRot + rotation) % 360 + 360) % 360 });
               fragment = {
                 imageData,
                 x: docX,
@@ -1612,12 +1574,21 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
           onDrop={isPrimary ? handleEmptyDrop : undefined}
         >
           {dropActive && (
-            <div className="absolute inset-3 rounded-2xl border-2 border-dashed border-emerald-400 bg-emerald-50/40 pointer-events-none" />
+            <div
+              className="absolute inset-3 rounded-2xl border-2 border-dashed border-emerald-400 pointer-events-none"
+              style={{ background: "color-mix(in srgb, var(--color-emerald-50) 40%, transparent)" }}
+            />
           )}
           <div className="relative mb-6">
-            <div className="absolute -inset-4 rounded-[2rem] bg-emerald-400/15 blur-2xl" />
-            <div className="relative h-24 w-24 rounded-3xl overflow-hidden shadow-2xl shadow-emerald-500/30 ring-1 ring-black/10">
-              <img src="/logo-new2.png" alt="Редактор PDF" className="h-full w-full object-cover scale-[1.14]" />
+            <div
+              className="absolute -inset-4 rounded-[2rem] blur-2xl"
+              style={{ background: "color-mix(in srgb, var(--color-emerald-400) 15%, transparent)" }}
+            />
+            <div
+              className="relative h-24 w-24 rounded-3xl overflow-hidden ring-1 ring-black/10"
+              style={{ boxShadow: "0 25px 50px -12px color-mix(in srgb, var(--color-emerald-500) 30%, transparent)" }}
+            >
+              <img src="/logo-new2.png" alt="Редактор PDF" className="h-full w-full object-cover" />
             </div>
           </div>
           <p className="text-lg font-semibold text-slate-400">
@@ -1660,10 +1631,10 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
             </div>
           )}
 
-          {userRotation !== 0 && (
+          {rotation !== 0 && (
             <div className="absolute top-2 left-2 z-10">
               <div className="bg-amber-500/90 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
-                {userRotation}°
+                {rotation}°
               </div>
             </div>
           )}

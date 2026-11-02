@@ -13,14 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   Clipboard, Loader2, GripVertical, X, Save,
-  Crop, SunMedium, Palette, Info, Mail, Scale, Github, Keyboard, Printer,
+  Crop, SunMedium, Palette, Info, Mail, Keyboard, Printer, Check,
 } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
 import appPackage from "../../package.json";
 
 const FONT_MAP: Record<string, string> = {
@@ -35,6 +33,38 @@ const FONT_MAP: Record<string, string> = {
   "Bookman": "TimesRoman",
   "Comic Sans MS": "Courier",
 };
+
+/** Доступные темы оформления. id синхронизирован с CSS-классами html.theme-<id> в globals.css */
+const THEMES: Array<{ id: string; name: string; dot: string }> = [
+  { id: "light", name: "Светлая", dot: "#f1f5f9" },
+  { id: "dark", name: "Тёмная", dot: "#0f172a" },
+  { id: "ocean", name: "Океан", dot: "#0ea5e9" },
+  { id: "forest", name: "Лес", dot: "#16a34a" },
+  { id: "sunset", name: "Закат", dot: "#f97316" },
+  { id: "lavender", name: "Лаванда", dot: "#a855f7" },
+  { id: "rose", name: "Роза", dot: "#f43f5e" },
+  { id: "mint", name: "Мята", dot: "#2dd4bf" },
+  { id: "amber", name: "Янтарь", dot: "#f59e0b" },
+  { id: "cherry", name: "Вишня", dot: "#dc2626" },
+  { id: "coffee", name: "Кофе", dot: "#92400e" },
+  { id: "graphite", name: "Графит", dot: "#475569" },
+];
+
+const THEME_STORAGE_KEY = "pdf-editor-theme";
+
+/** Применить тему: убирает все theme-* классы и класс dark, ставит нужный, сохраняет выбор */
+function applyTheme(themeId: string) {
+  const classes = document.documentElement.classList;
+  for (const t of THEMES) {
+    if (t.id !== "light" && t.id !== "dark") classes.remove(`theme-${t.id}`);
+  }
+  classes.remove("dark");
+  if (themeId === "dark") classes.add("dark");
+  else if (themeId !== "light") classes.add(`theme-${themeId}`);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, themeId);
+  } catch {}
+}
 
 function hexToRgb(hex: string) {
   const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -322,7 +352,7 @@ function drawStickyOnCanvas(ctx: CanvasRenderingContext2D, note: StickyNote, ren
 
 interface CompositePageOptions {
   renderScale: number;
-  rotation: number; // поворот, сделанный пользователем (0/90/180/270 или произвольный)
+  rotation: number; // normalized total rotation for the viewport
   adjustment?: PageAdjustment | null;
   fragments?: PlacedFragment[];
   eraserStrokes?: EraserStroke[];
@@ -350,11 +380,10 @@ async function compositePageCanvas(
   } = opts;
 
   const pdfjsPage = await pdfJsDoc.getPage(pageNum);
-  // Полный поворот = встроенный /Rotate страницы + поворот пользователя.
-  // Сохранение обязано совпадать с тем, что пользователь видит в редакторе.
-  const built = ((((pdfjsPage.rotate ?? 0) % 360) + 360) % 360);
-  const totalRot = ((rotation + built) % 360 + 360) % 360;
-  const viewport = pdfjsPage.getViewport({ scale: renderScale, rotation: totalRot });
+  // Учитываем /Rotate метаданные страницы: итоговый поворот = метаданные + пользовательский
+  const baseRotation = ((pdfjsPage.rotate || 0) % 360 + 360) % 360;
+  const effRotation = ((baseRotation + rotation) % 360 + 360) % 360;
+  const viewport = pdfjsPage.getViewport({ scale: renderScale, rotation: effRotation });
   const origViewport = pdfjsPage.getViewport({ scale: 1, rotation: 0 });
 
   const pageCanvas = document.createElement("canvas");
@@ -471,15 +500,18 @@ async function compositePageCanvas(
       let drawW = fp.width;
       let drawH = fp.height;
 
-      if (placedRot !== totalRot) {
-        const t = transformCoordsForSave(fp.x, fp.y, fp.width, fp.height, placedRot, totalRot, pw, ph);
+      // Координаты фрагмента хранятся в системе viewport с эффективным поворотом
+      // (метаданные /Rotate + пользовательский) на момент размещения
+      const effPlacedRot = ((baseRotation + placedRot) % 360 + 360) % 360;
+      if (effPlacedRot !== effRotation) {
+        const t = transformCoordsForSave(fp.x, fp.y, fp.width, fp.height, effPlacedRot, effRotation, pw, ph);
         drawX = t.x;
         drawY = t.y;
         drawW = t.w;
         drawH = t.h;
       }
 
-      const deltaRot = ((totalRot - placedRot) % 360 + 360) % 360;
+      const deltaRot = ((effRotation - effPlacedRot) % 360 + 360) % 360;
       if (deltaRot !== 0 && deltaRot % 90 === 0) {
         ctx.save();
         ctx.translate(
@@ -569,20 +601,17 @@ async function buildPdfBlob(targetSource: "primary" | "secondary"): Promise<Blob
       const pageStickyNotes = stickyNotes.filter((n) => n.pageIndex === i);
       const pageAdj = adjustments[i];
 
-      const hasLayers =
+      const hasModifications =
         pageFragments.length > 0 ||
         pageEraserStrokes.length > 0 ||
         pageDrawingStrokes.length > 0 ||
         pageAnnotations.length > 0 ||
         pageMarks.length > 0 ||
         pageStickyNotes.length > 0 ||
+        normalizedRot !== 0 ||
         !!pageAdj;
-      // Растровый режим обязателен при слоях правок и при произвольном угле
-      // (±1° и т.п.) — кратные 90° повороты делаются без растра, через /Rotate
-      const needsRaster =
-        hasLayers || (normalizedRot !== 0 && normalizedRot % 90 !== 0);
 
-      if (needsRaster) {
+      if (hasModifications) {
         // === IMAGE MODE: render page and bake all annotation layers ===
         const compCanvas = await compositePageCanvas(pdfJsDoc, i, {
           renderScale,
@@ -596,14 +625,10 @@ async function buildPdfBlob(targetSource: "primary" | "secondary"): Promise<Blob
           stickyNotes: pageStickyNotes,
         });
 
-        // Края не обрезаем: страница после поворота на 90°/180°/270° должна
-        // остаться исходного размера, с теми же пустыми полями, что и в оригинале.
-        // Автообрезка нужна только для произвольных углов (±1° и т.п.),
-        // где при растровом повороте появляются белые углы по краям.
-        const finalCanvas =
-          normalizedRot !== 0 && normalizedRot % 90 !== 0
-            ? autoCropCanvas(compCanvas)
-            : compCanvas;
+        // Сохраняем страницу целиком — размеры итоговой страницы всегда
+        // совпадают с оригиналом (при повороте ширина/высота меняются местами
+        // автоматически за счёт viewport). Никакой обрезки пустых полей.
+        const finalCanvas = compCanvas;
 
         const jpgDataUrl = finalCanvas.toDataURL("image/jpeg", 0.92);
         const jpgBytes = dataUrlToBytes(jpgDataUrl);
@@ -613,17 +638,8 @@ async function buildPdfBlob(targetSource: "primary" | "secondary"): Promise<Blob
         const img = await newDoc.embedJpg(jpgBytes);
         newPage.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
       } else {
-        // === VECTOR MODE: копия страницы без потери качества.
-        // Поворот на 90°/180°/270° записывается в метаданные /Rotate —
-        // страница остаётся исходного размера, края и поля не обрезаются,
-        // размер файла и чёткость текста сохраняются как в оригинале.
+        // No modifications — copy page as-is from original PDF (preserves vector content)
         const [copiedPage] = await newDoc.copyPages(pdfDoc, [i - 1]);
-        if (normalizedRot !== 0) {
-          const curRot = copiedPage.getRotation().angle;
-          copiedPage.setRotation(
-            degrees((((curRot + normalizedRot) % 360) + 360) % 360)
-          );
-        }
         newDoc.addPage(copiedPage);
       }
     }
@@ -1083,13 +1099,8 @@ async function autoCorrectCurrentPage() {
     const renderScale = 2;
     const page = await pdfJsDoc.getPage(currentPage);
     const rot = pageRotations[currentPage] || 0;
-    const normalizedRot = ((rot % 360) + 360) % 360;
-    // Полный поворот = /Rotate страницы + поворот пользователя
-    const built = ((((page.rotate ?? 0) % 360) + 360) % 360);
-    const viewport = page.getViewport({
-      scale: renderScale,
-      rotation: ((normalizedRot + built) % 360 + 360) % 360,
-    });
+    const normalizedRot = (((page.rotate || 0) + rot) % 360 + 360) % 360;
+    const viewport = page.getViewport({ scale: renderScale, rotation: normalizedRot });
 
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(viewport.width);
@@ -1410,38 +1421,34 @@ async function deleteBlankPages() {
   }
 }
 
-async function renderPrintPages(pages: number[]): Promise<string[]> {
+/** Печать: готовит картинку текущей страницы для предпросмотра (внутри приложения,
+ *  без новых окон — в Electron window.open создаёт отдельное окно Electron) */
+async function renderPrintPreview(): Promise<string | null> {
   const s = usePdfEditorStore.getState();
-  if (!s.pdfJsDoc) return [];
-  const out: string[] = [];
-  for (const p of pages) {
-    const page = await s.pdfJsDoc.getPage(p);
-    const userRot = ((s.pageRotations[p] || 0) % 360 + 360) % 360;
-    // Полный поворот = /Rotate страницы + поворот пользователя
-    const built = ((((page.rotate ?? 0) % 360) + 360) % 360);
-    const viewport = page.getViewport({
-      scale: 2,
-      rotation: ((userRot + built) % 360 + 360) % 360,
-    });
+  const { pdfJsDoc, currentPage, pageRotations } = s;
+  if (!pdfJsDoc) return null;
+
+  try {
+    const rotation = ((pageRotations[currentPage] || 0) % 360 + 360) % 360;
+    const page = await pdfJsDoc.getPage(currentPage);
+    // Учитываем /Rotate метаданные страницы
+    const totalRotation = (((page.rotate || 0) + rotation) % 360 + 360) % 360;
+    const scale = 2;
+    const viewport = page.getViewport({ scale, rotation: totalRotation });
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(viewport.width);
     canvas.height = Math.round(viewport.height);
     const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
+    if (!ctx) return null;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: ctx, viewport }).promise;
-    out.push(canvas.toDataURL("image/jpeg", 0.92));
-  }
-  return out;
-}
 
-/** Применяет тему (light / dark / system) и запоминает выбор */
-function applyTheme(value: string) {
-  const dark =
-    value === "dark" ||
-    (value === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
+    return canvas.toDataURL("image/png");
+  } catch (err) {
+    console.error("Ошибка печати:", err);
+    return null;
+  }
 }
 
 export default function HomePage() {
@@ -1457,84 +1464,15 @@ export default function HomePage() {
 
   const isDragging = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // ── Предпросмотр печати ───────────────────────────────────────────
-  const [printOpen, setPrintOpen] = useState(false);
-  const [printScope, setPrintScope] = useState<"current" | "all" | "selected">("current");
-  const [printPreviews, setPrintPreviews] = useState<string[]>([]);
-  const [printLoading, setPrintLoading] = useState(false);
-
-  const loadPrintPreviews = useCallback(async (scope: "current" | "all" | "selected") => {
-    const s = usePdfEditorStore.getState();
-    if (!s.pdfJsDoc) return;
-    let pages: number[] = [];
-    if (scope === "all") {
-      pages = Array.from({ length: s.totalPages }, (_, i) => i + 1);
-    } else if (scope === "selected") {
-      pages = s.pageSelections.length > 0 ? [...s.pageSelections].sort((a, b) => a - b) : [s.currentPage];
-    } else {
-      pages = [s.currentPage];
-    }
-    setPrintLoading(true);
+  const [printPreviewUrl, setPrintPreviewUrl] = useState<string | null>(null);
+  const [activeTheme, setActiveTheme] = useState<string>(() => {
+    if (typeof window === "undefined") return "light";
     try {
-      const out = await renderPrintPages(pages);
-      setPrintPreviews(out);
-    } catch (err) {
-      console.error("Ошибка предпросмотра печати:", err);
-      setPrintPreviews([]);
-    } finally {
-      setPrintLoading(false);
+      return localStorage.getItem(THEME_STORAGE_KEY) || "light";
+    } catch {
+      return "light";
     }
-  }, []);
-
-  const handlePrintNow = useCallback(() => {
-    if (printPreviews.length === 0) return;
-    const name = usePdfEditorStore.getState().fileName || "документ";
-    const imgs = printPreviews
-      .map((src, i) => `<img src="${src}" style="display:block;width:100%;${i < printPreviews.length - 1 ? "page-break-after:always;" : ""}" />`)
-      .join("");
-    const frame = document.createElement("iframe");
-    frame.style.position = "fixed";
-    frame.style.right = "0";
-    frame.style.bottom = "0";
-    frame.style.width = "0";
-    frame.style.height = "0";
-    frame.style.border = "0";
-    frame.srcdoc = `<!DOCTYPE html><html><head><title>Печать — ${name}</title><style>@page{margin:10mm}body{margin:0}img{display:block;width:100%}</style></head><body>${imgs}</body></html>`;
-    frame.onload = () => {
-      setTimeout(() => {
-        try {
-          frame.contentWindow?.focus();
-          frame.contentWindow?.print();
-        } catch (err) {
-          console.error("Ошибка печати:", err);
-        }
-        setTimeout(() => frame.remove(), 60000);
-      }, 200);
-    };
-    document.body.appendChild(frame);
-  }, [printPreviews]);
-
-  const handlePrintScopeChange = useCallback((scope: "current" | "all" | "selected") => {
-    setPrintScope(scope);
-    loadPrintPreviews(scope);
-  }, [loadPrintPreviews]);
-
-  // ── Тема ──────────────────────────────────────────────────────────
-  const [themeValue, setThemeValue] = useState("light");
-  useEffect(() => {
-    const saved = localStorage.getItem("pdf-editor-theme") || "light";
-    setThemeValue(saved);
-    applyTheme(saved);
-  }, []);
-  const changeTheme = (value: string) => {
-    setThemeValue(value);
-    localStorage.setItem("pdf-editor-theme", value);
-    applyTheme(value);
-  };
-
-  // ── Горячие клавиши ─────────────────────────────────────────────
-  const [hotkeysOpen, setHotkeysOpen] = useState(false);
+  });
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -1582,7 +1520,7 @@ export default function HomePage() {
       const s = usePdfEditorStore.getState();
       if (!s.secondaryPdfFile || !s.secondaryPdfJsDoc) return;
       requestSaveAs({
-        title: "Сохранить PDF (второй документ)",
+        title: "Сохранить PDF (источник)",
         defaultName: `${stripPdf(s.secondaryFileName)}_редактированный.pdf`,
         accept: { "application/pdf": [".pdf"] },
         typeLabel: "PDF документ",
@@ -1605,9 +1543,9 @@ export default function HomePage() {
     };
     const handleCrop = () => autoCropCurrentPage();
     const handleAutoCorrect = () => autoCorrectCurrentPage();
-    const handlePrintEv = () => {
-      setPrintOpen(true);
-      loadPrintPreviews("current");
+    const handlePrintEv = async () => {
+      const url = await renderPrintPreview();
+      if (url) setPrintPreviewUrl(url);
     };
     const handleExportImage = (e: Event) => {
       const format = (e as CustomEvent).detail?.format === "jpg" ? "jpg" : "png";
@@ -1699,16 +1637,19 @@ export default function HomePage() {
   const currentAdj = pageAdjustments[currentPage] || null;
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 app-chrome" ref={containerRef}>
+    <div className="h-screen flex flex-col bg-slate-50" ref={containerRef}>
       {/* ─── Header ─── */}
-      <header className="relative flex items-center justify-between px-4 py-2.5 border-b border-slate-200/60 bg-gradient-to-r from-white via-emerald-50/50 to-white shrink-0 overflow-hidden">
+      <header
+        className="relative flex items-center justify-between px-4 py-2.5 border-b border-slate-200/60 shrink-0 overflow-hidden"
+        style={{ background: "var(--app-header-bg)" }}
+      >
         {/* Decorative glow */}
         <div className="pointer-events-none absolute -top-20 left-1/3 h-40 w-80 rounded-full bg-emerald-300/15 blur-3xl" />
         <div className="relative flex items-center gap-3">
           {/* Logo icon — beautiful generated artwork */}
           <div className="relative group">
             <div className="h-10 w-10 rounded-xl overflow-hidden shadow-lg shadow-emerald-500/25 ring-1 ring-black/10 transition-transform duration-200 group-hover:scale-105">
-              <img src="/logo-new2.png" alt="Логотип Редактор PDF" className="h-full w-full object-cover scale-[1.14]" />
+              <img src="/logo-new2.png" alt="Логотип Редактор PDF" className="h-full w-full object-cover" />
             </div>
             <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-white/25 pointer-events-none" />
           </div>
@@ -1729,124 +1670,65 @@ export default function HomePage() {
                 <span className="hidden md:inline">Тема</span>
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-48 p-1" side="bottom" align="start">
-              {[
-                { name: "Светлая", value: "light" },
-                { name: "Тёмная", value: "dark" },
-                { name: "Системная", value: "system" },
-              ].map((t) => (
+            <PopoverContent className="w-44 p-1.5 max-h-[320px] overflow-y-auto" side="bottom" align="start">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold px-2 py-1">Тема оформления</p>
+              {THEMES.map((t) => (
                 <button
-                  key={t.value}
+                  key={t.id}
                   type="button"
-                  onClick={() => changeTheme(t.value)}
-                  className={`w-full flex items-center justify-between text-left px-3 py-1.5 text-xs rounded-md hover:bg-slate-100 text-slate-700 transition-colors ${
-                    themeValue === t.value ? "bg-emerald-50/80 text-emerald-700 font-semibold" : ""
-                  }`}
+                  onClick={() => {
+                    applyTheme(t.id);
+                    setActiveTheme(t.id);
+                  }}
+                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-xs rounded-md hover:bg-slate-100 text-slate-700 transition-colors"
                 >
-                  {t.name}
-                  {themeValue === t.value && <span className="text-[9px] font-bold">✓</span>}
+                  <span
+                    className="h-3.5 w-3.5 rounded-full ring-1 ring-black/10 shrink-0"
+                    style={{ backgroundColor: t.dot }}
+                  />
+                  <span className="flex-1">{t.name}</span>
+                  {activeTheme === t.id && <Check className="h-3.5 w-3.5 text-emerald-600" />}
                 </button>
               ))}
             </PopoverContent>
           </Popover>
-          <Dialog open={hotkeysOpen} onOpenChange={setHotkeysOpen}>
-            <button
-              type="button"
-              aria-label="Горячие клавиши"
-              onClick={() => setHotkeysOpen(true)}
-              className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-emerald-700 px-2 py-1.5 rounded-lg hover:bg-emerald-50/80 transition-colors"
-            >
-              <Keyboard className="h-3 w-3" />
-              <span className="hidden md:inline">Клавиши</span>
-            </button>
-            <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="text-base">Горячие клавиши</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 text-sm">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Документ</p>
-                  <div className="space-y-1.5">
-                    {[
-                      ["Ctrl + O", "Открыть PDF"],
-                      ["Ctrl + S", "Сохранить (вшить слои)"],
-                      ["Ctrl + F", "Поиск по документу"],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between gap-3">
-                        <kbd className="text-[10px] font-mono bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 whitespace-nowrap">{k}</kbd>
-                        <span className="text-xs text-slate-600 text-right">{v}</span>
-                      </div>
-                    ))}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="Горячие клавиши"
+                className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-emerald-700 px-2 py-1.5 rounded-lg hover:bg-emerald-50/80 transition-colors"
+              >
+                <Keyboard className="h-3 w-3" />
+                <span className="hidden lg:inline">Горячие клавиши</span>
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" side="bottom" align="start">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Горячие клавиши</p>
+              <div className="space-y-1">
+                {[
+                  ["Ctrl + O", "Открыть PDF"],
+                  ["Ctrl + S", "Сохранить"],
+                  ["Ctrl + Z", "Отменить"],
+                  ["Ctrl + Y", "Повторить"],
+                  ["Ctrl + C", "Копировать фрагмент"],
+                  ["Ctrl + V", "Вставить фрагмент"],
+                  ["T", "Текст"],
+                  ["P", "Перо"],
+                  ["E", "Ластик"],
+                  ["H", "Выделение"],
+                  ["S", "Выделить фрагмент"],
+                  ["N", "Заметка"],
+                  ["Esc", "Сбросить инструмент"],
+                ].map(([k, label]) => (
+                  <div key={k} className="flex items-center justify-between gap-3">
+                    <kbd className="text-[10px] font-mono font-semibold bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 text-slate-600 whitespace-nowrap">{k}</kbd>
+                    <span className="text-[11px] text-slate-600 text-right">{label}</span>
                   </div>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">История</p>
-                  <div className="space-y-1.5">
-                    {[
-                      ["Ctrl + Z", "Отменить последнее действие"],
-                      ["Ctrl + Y / Ctrl + Shift + Z", "Вернуть отменённое"],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between gap-3">
-                        <kbd className="text-[10px] font-mono bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 whitespace-nowrap">{k}</kbd>
-                        <span className="text-xs text-slate-600 text-right">{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Инструменты</p>
-                  <div className="space-y-1.5">
-                    {[
-                      ["T", "Текст"],
-                      ["P", "Перо"],
-                      ["E", "Ластик"],
-                      ["I", "Пипетка"],
-                      ["S", "Выделить фрагмент"],
-                      ["H", "Выделение (маркер)"],
-                      ["N", "Заметка"],
-                      ["V", "Вставить фрагмент"],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between gap-3">
-                        <kbd className="text-[10px] font-mono bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 whitespace-nowrap min-w-[24px] text-center">{k}</kbd>
-                        <span className="text-xs text-slate-600 text-right">{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Фрагменты</p>
-                  <div className="space-y-1.5">
-                    {[
-                      ["Ctrl + C", "Копировать выделенный фрагмент"],
-                      ["Ctrl + V", "Вставить фрагмент из буфера"],
-                      ["← → ↑ ↓", "Сдвинуть вставленный фрагмент"],
-                      ["Delete", "Удалить выбранный фрагмент"],
-                      ["Esc", "Отменить инструмент / снять выделение"],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between gap-3">
-                        <kbd className="text-[10px] font-mono bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 whitespace-nowrap">{k}</kbd>
-                        <span className="text-xs text-slate-600 text-right">{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-2">Масштаб</p>
-                  <div className="space-y-1.5">
-                    {[
-                      ["+ / =", "Увеличить"],
-                      ["−", "Уменьшить"],
-                    ].map(([k, v]) => (
-                      <div key={k} className="flex items-center justify-between gap-3">
-                        <kbd className="text-[10px] font-mono bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 whitespace-nowrap">{k}</kbd>
-                        <span className="text-xs text-slate-600 text-right">{v}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                ))}
               </div>
-            </DialogContent>
-          </Dialog>
+            </PopoverContent>
+          </Popover>
           <Popover>
             <PopoverTrigger asChild>
               <button
@@ -1905,30 +1787,6 @@ export default function HomePage() {
                     <span className="block text-xs font-medium text-slate-700 truncate">flytimopheev@gmail.com</span>
                   </span>
                 </a>
-                {/* Лицензия */}
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-2">
-                  <span className="h-6 w-6 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                    <Scale className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Лицензия</span>
-                    <span className="block text-xs font-medium text-slate-700 truncate">{appPackage.license} · свободное использование</span>
-                  </span>
-                </div>
-                <a
-                  href="https://github.com/flytimopheev-sketch/pdf-editor"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-2 hover:bg-emerald-50 hover:border-emerald-200/70 transition-colors group"
-                >
-                  <span className="h-6 w-6 rounded-md bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-200 transition-colors">
-                    <Github className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-semibold">Исходный код</span>
-                    <span className="block text-xs font-medium text-slate-700 truncate">github.com/flytimopheev-sketch/pdf-editor</span>
-                  </span>
-                </a>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
                     { dot: "bg-emerald-400", label: "Слои и история" },
@@ -1946,10 +1804,15 @@ export default function HomePage() {
                   ))}
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
-                  <p className="text-[10px] text-slate-400">© 2026 Редактор PDF · РЕД ОС (x86_64)</p>
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
-                    Работает офлайн
-                  </span>
+                  <p className="text-[10px] text-slate-400">Для РЕД ОС (x86_64) · 2025</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
+                      Лицензия MIT
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-full">
+                      Офлайн
+                    </span>
+                  </div>
                 </div>
               </div>
             </PopoverContent>
@@ -2101,10 +1964,10 @@ export default function HomePage() {
             <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200/60 bg-gradient-to-r from-violet-50/50 to-white">
               <div className="flex items-center gap-2">
                 <div className="h-5 w-5 rounded-md bg-violet-100 flex items-center justify-center">
-                  <span className="text-[9px] font-bold text-violet-600">2</span>
+                  <span className="text-[9px] font-bold text-violet-600">SRC</span>
                 </div>
                 <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                  Второй документ
+                  Источник
                 </span>
                 <span className="text-[10px] text-slate-400 truncate max-w-[100px]">
                   {store.secondaryFileName}
@@ -2162,77 +2025,60 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Диалог предпросмотра печати */}
-      <Dialog open={printOpen} onOpenChange={setPrintOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Printer className="h-4 w-4 text-emerald-600" />
-              Предпросмотр печати
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              { value: "current", label: "Текущая страница" },
-              { value: "all", label: `Весь документ (${totalPages})` },
-              { value: "selected", label: store.pageSelections.length > 0 ? `Выбранные (${store.pageSelections.length})` : "Выбранные" },
-            ].map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handlePrintScopeChange(opt.value as "current" | "all" | "selected")}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                  printScope === opt.value
-                    ? "bg-emerald-500 text-white border-emerald-500"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:border-emerald-300"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-200 bg-slate-200/60 p-4 space-y-4 custom-scrollbar">
-            {printLoading ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-                <p className="text-xs text-slate-500">Подготовка страниц...</p>
-              </div>
-            ) : printPreviews.length === 0 ? (
-              <div className="flex items-center justify-center py-16 text-xs text-slate-500">
-                Нет страниц для печати
-              </div>
-            ) : (
-              printPreviews.map((src, i) => (
-                <div key={i} className="bg-white shadow-lg rounded-md overflow-hidden mx-auto" style={{ maxWidth: 560 }}>
-                  <img src={src} alt={`Страница ${i + 1}`} className="w-full h-auto block" />
-                </div>
-              ))
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] text-slate-400">
-              {printLoading ? "Подготовка..." : `Страниц: ${printPreviews.length}`}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPrintOpen(false)}>
-                Отмена
-              </Button>
-              <Button
-                size="sm"
-                className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={handlePrintNow}
-                disabled={printLoading || printPreviews.length === 0}
-              >
-                <Printer className="h-3.5 w-3.5" />
-                Печать
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Диалог «Сохранить как» — спрашивает имя/место перед сохранением и экспортом */}
       <SaveAsDialog />
+
+      {/* Предпросмотр печати — внутри приложения, без новых окон */}
+      <Dialog open={!!printPreviewUrl} onOpenChange={(o) => { if (!o) setPrintPreviewUrl(null); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Предпросмотр печати — страница {currentPage}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Просмотр страницы перед печатью. Нажмите «Печать» для отправки на принтер.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[58vh] overflow-auto rounded-lg bg-slate-100 p-4 flex items-center justify-center">
+            {printPreviewUrl && (
+              <img
+                src={printPreviewUrl}
+                alt="Предпросмотр печати"
+                className="max-w-full max-h-[52vh] bg-white shadow-lg"
+              />
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPrintPreviewUrl(null)}>
+              Закрыть
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => {
+                if (!printPreviewUrl) return;
+                const iframe = document.createElement("iframe");
+                iframe.style.position = "fixed";
+                iframe.style.right = "0";
+                iframe.style.bottom = "0";
+                iframe.style.width = "0";
+                iframe.style.height = "0";
+                iframe.style.border = "0";
+                iframe.title = "Печать";
+                document.body.appendChild(iframe);
+                const doc = iframe.contentWindow?.document;
+                if (doc) {
+                  doc.open();
+                  doc.write(
+                    `<html><head><title>Печать</title><style>@page{margin:10mm}body{margin:0}img{max-width:100%;max-height:96vh;object-fit:contain}</style></head><body><img src="${printPreviewUrl}" onload="window.focus();window.print();"/></body></html>`
+                  );
+                  doc.close();
+                }
+                setTimeout(() => { iframe.remove(); }, 60000);
+              }}
+            >
+              <Printer className="h-4 w-4 mr-1" /> Печать
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Processing overlay */}
       {isProcessing && (

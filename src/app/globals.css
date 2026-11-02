@@ -121,6 +121,234 @@
   }
 }
 
+/* ════════════════════════════════════════════════════════════════
+   МНОГОТЕМНОСТЬ: 7 тем оформления.
+   Tailwind v4 компилирует утилиты в var(--color-*), поэтому тема
+   переопределяет палитры slate (нейтральные) и emerald/teal
+   (акцент) прямо на html.theme-* — весь интерфейс перекрашивается.
+   ──────────────────────────────────────────────────────────────── */
+
+:root {
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(236, 253, 245, 0.5), #ffffff);
+}
+
+/* Тёмная тема — интерфейс темнеет, «бумага» документа остаётся белой */
+html.dark {
+  --color-slate-50: #0b1220;
+  --color-slate-100: #111a2c;
+  --color-slate-200: #1c2941;
+  --color-slate-300: #2b3b58;
+  --color-slate-400: #64748b;
+  --color-slate-500: #8296b1;
+  --color-slate-600: #a5b4cb;
+  --color-slate-700: #cbd5e1;
+  --color-slate-800: #e2e8f0;
+  --color-slate-900: #f1f5f9;
+  --color-emerald-50: #06251b;
+  --color-emerald-100: #0a3527;
+  --color-emerald-200: #0f4c37;
+  --color-emerald-300: #166a4d;
+  --color-emerald-500: #10b981;
+  --color-emerald-600: #059669;
+  --color-emerald-700: #34d399;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
+  --app-header-bg: linear-gradient(to right, #0d1526, rgba(6, 37, 27, 0.6), #0d1526);
+  color-scheme: dark;
+}
+
+/* ── Океан: холодный синий ── */
+html.theme-ocean {
+  --color-slate-50: #f2f8fc;
+  --color-slate-100: #e2eef7;
+  --color-slate-200: #c5dcec;
+  --color-slate-300: #9fc0d8;
+  --color-emerald-50: #e0f2fe;
+  --color-emerald-100: #bae6fd;
+  --color-emerald-200: #7dd3fc;
+  --color-emerald-300: #38bdf8;
+  --color-emerald-500: #0ea5e9;
+  --color-emerald-600: #0284c7;
+  --color-emerald-700: #0369a1;
+  --color-teal-500: #0891b2;
+  --color-teal-600: #0e7490;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(224, 242, 254, 0.55), #ffffff);
+}
+
+/* ── Лес: глубокий зелёный ── */
+html.theme-forest {
+  --color-slate-50: #f4f9f2;
+  --color-slate-100: #e4f0e0;
+  --color-slate-200: #c8dfc3;
+  --color-slate-300: #a3c9a0;
+  --color-emerald-50: #dcfce7;
+  --color-emerald-100: #bbf7d0;
+  --color-emerald-200: #86efac;
+  --color-emerald-300: #4ade80;
+  --color-emerald-500: #22c55e;
+  --color-emerald-600: #16a34a;
+  --color-emerald-700: #15803d;
+  --color-teal-500: #0d9488;
+  --color-teal-600: #0f766e;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(220, 252, 231, 0.55), #ffffff);
+}
+
+/* ── Закат: тёплый оранжевый ── */
+html.theme-sunset {
+  --color-slate-50: #fbf7f2;
+  --color-slate-100: #f6ece0;
+  --color-slate-200: #ecd7c1;
+  --color-slate-300: #debb9c;
+  --color-emerald-50: #ffedd5;
+  --color-emerald-100: #fed7aa;
+  --color-emerald-200: #fdba74;
+  --color-emerald-300: #fb923c;
+  --color-emerald-500: #f97316;
+  --color-emerald-600: #ea580c;
+  --color-emerald-700: #c2410c;
+  --color-teal-500: #e8734a;
+  --color-teal-600: #d15a31;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(255, 237, 213, 0.6), #ffffff);
+}
+
+/* ── Лаванда: мягкий фиолетовый ── */
+html.theme-lavender {
+  --color-slate-50: #f8f7fc;
+  --color-slate-100: #edeaf8;
+  --color-slate-200: #dcd4f0;
+  --color-slate-300: #c2b5e4;
+  --color-emerald-50: #f3e8ff;
+  --color-emerald-100: #e9d5ff;
+  --color-emerald-200: #d8b4fe;
+  --color-emerald-300: #c084fc;
+  --color-emerald-500: #a855f7;
+  --color-emerald-600: #9333ea;
+  --color-emerald-700: #7e22ce;
+  --color-teal-500: #8b5cf6;
+  --color-teal-600: #7c3aed;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(243, 232, 255, 0.55), #ffffff);
+}
+
+/* ── Роза: нежный розовый ── */
+html.theme-rose {
+  --color-slate-50: #fdf5f6;
+  --color-slate-100: #f9e8ea;
+  --color-slate-200: #f2d3d7;
+  --color-slate-300: #e5b3ba;
+  --color-emerald-50: #ffe4e6;
+  --color-emerald-100: #fecdd3;
+  --color-emerald-200: #fda4af;
+  --color-emerald-300: #fb7185;
+  --color-emerald-500: #f43f5e;
+  --color-emerald-600: #e11d48;
+  --color-emerald-700: #be123c;
+  --color-teal-500: #e15b72;
+  --color-teal-600: #c94259;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(255, 228, 230, 0.55), #ffffff);
+}
+
+/* ── Мята: свежий мятно-бирюзовый ── */
+html.theme-mint {
+  --color-slate-50: #f2fbf9;
+  --color-slate-100: #e0f5f0;
+  --color-slate-200: #c2e9e0;
+  --color-slate-300: #97d7ca;
+  --color-emerald-50: #ccfbf1;
+  --color-emerald-100: #99f6e4;
+  --color-emerald-200: #5eead4;
+  --color-emerald-300: #2dd4bf;
+  --color-emerald-500: #14b8a6;
+  --color-emerald-600: #0d9488;
+  --color-emerald-700: #0f766e;
+  --color-teal-500: #0d9488;
+  --color-teal-600: #0f766e;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(204, 251, 241, 0.55), #ffffff);
+}
+
+/* ── Янтарь: тёплый золотистый ── */
+html.theme-amber {
+  --color-slate-50: #fdfaf2;
+  --color-slate-100: #f9f1dd;
+  --color-slate-200: #f0e0ba;
+  --color-slate-300: #e4cb8d;
+  --color-emerald-50: #fef3c7;
+  --color-emerald-100: #fde68a;
+  --color-emerald-200: #fcd34d;
+  --color-emerald-300: #fbbf24;
+  --color-emerald-500: #f59e0b;
+  --color-emerald-600: #d97706;
+  --color-emerald-700: #b45309;
+  --color-teal-500: #d9a441;
+  --color-teal-600: #b8860b;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(254, 243, 199, 0.6), #ffffff);
+}
+
+/* ── Вишня: глубокий насыщенный красный ── */
+html.theme-cherry {
+  --color-slate-50: #fdf4f4;
+  --color-slate-100: #f9e5e5;
+  --color-slate-200: #f0caca;
+  --color-slate-300: #e2a8a8;
+  --color-emerald-50: #fee2e2;
+  --color-emerald-100: #fecaca;
+  --color-emerald-200: #fca5a5;
+  --color-emerald-300: #f87171;
+  --color-emerald-500: #ef4444;
+  --color-emerald-600: #dc2626;
+  --color-emerald-700: #b91c1c;
+  --color-teal-500: #d0453f;
+  --color-teal-600: #b03630;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(254, 226, 226, 0.55), #ffffff);
+}
+
+/* ── Кофе: тёплый кофейно-шоколадный ── */
+html.theme-coffee {
+  --color-slate-50: #fbf8f4;
+  --color-slate-100: #f3ece1;
+  --color-slate-200: #e4d6c2;
+  --color-slate-300: #cfba9c;
+  --color-emerald-50: #fbebdc;
+  --color-emerald-100: #f5d5b5;
+  --color-emerald-200: #eab788;
+  --color-emerald-300: #d99957;
+  --color-emerald-500: #b45309;
+  --color-emerald-600: #92400e;
+  --color-emerald-700: #78350f;
+  --color-teal-500: #a0622d;
+  --color-teal-600: #82481f;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(251, 235, 220, 0.6), #ffffff);
+}
+
+/* ── Графит: строгий деловой серый ── */
+html.theme-graphite {
+  --color-slate-50: #f7f8f9;
+  --color-slate-100: #eceff2;
+  --color-slate-200: #d5dbe1;
+  --color-slate-300: #b4bec9;
+  --color-emerald-50: #eef1f4;
+  --color-emerald-100: #dde3e9;
+  --color-emerald-200: #c2ccd6;
+  --color-emerald-300: #9daebd;
+  --color-emerald-500: #64748b;
+  --color-emerald-600: #475569;
+  --color-emerald-700: #334155;
+  --color-teal-500: #5a6b7e;
+  --color-teal-600: #465668;
+  --app-header-bg: linear-gradient(to right, #ffffff, rgba(236, 239, 242, 0.7), #ffffff);
+}
+
+/* Тёмная + цветовая акцентная тема (Тёмная выбрана после цветовой) */
+html.dark.theme-ocean  { --color-emerald-50:#041e2e; --color-emerald-100:#072c43; --color-emerald-200:#0b3d5c; --color-emerald-600:#0284c7; --color-emerald-700:#38bdf8; }
+html.dark.theme-forest { --color-emerald-50:#05240f; --color-emerald-100:#083318; --color-emerald-200:#0d4722; --color-emerald-600:#16a34a; --color-emerald-700:#4ade80; }
+html.dark.theme-sunset { --color-emerald-50:#2a1505; --color-emerald-100:#3a1f09; --color-emerald-200:#4d2a0d; --color-emerald-600:#ea580c; --color-emerald-700:#fb923c; }
+html.dark.theme-lavender { --color-emerald-50:#1e1030; --color-emerald-100:#2a1745; --color-emerald-200:#3a2060; --color-emerald-600:#9333ea; --color-emerald-700:#c084fc; }
+html.dark.theme-rose { --color-emerald-50:#2b0a10; --color-emerald-100:#3d0e17; --color-emerald-200:#53141f; --color-emerald-600:#e11d48; --color-emerald-700:#fb7185; }
+html.dark.theme-mint { --color-emerald-50:#04231f; --color-emerald-100:#07332c; --color-emerald-200:#0b473d; --color-emerald-600:#0d9488; --color-emerald-700:#2dd4bf; }
+html.dark.theme-amber { --color-emerald-50:#271a03; --color-emerald-100:#372505; --color-emerald-200:#4a3208; --color-emerald-600:#d97706; --color-emerald-700:#fbbf24; }
+html.dark.theme-cherry { --color-emerald-50:#2b0808; --color-emerald-100:#3d0e0e; --color-emerald-200:#551414; --color-emerald-600:#dc2626; --color-emerald-700:#f87171; }
+html.dark.theme-coffee { --color-emerald-50:#251305; --color-emerald-100:#351c08; --color-emerald-200:#48270d; --color-emerald-600:#92400e; --color-emerald-700:#d99957; }
+html.dark.theme-graphite { --color-emerald-50:#171b21; --color-emerald-100:#20252d; --color-emerald-200:#2b333d; --color-emerald-600:#64748b; --color-emerald-700:#9daebd; }
+
 /* ── Print styles: only PDF canvas ─────────────────────────────── */
 @media print {
   /* Hide everything by default */
@@ -141,35 +369,4 @@
     box-shadow: none !important;
     border: none !important;
   }
-}
-
-/* ── Кастомный скроллбар ─────────────────────────────────────────── */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(16, 185, 129, 0.35);
-  border-radius: 8px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(16, 185, 129, 0.6);
-}
-
-/* ── Тёмная тема (переключатель «Тема» в шапке) ──────────────────── */
-html.dark body {
-  background: #0f172a;
-}
-html.dark .app-chrome {
-  filter: invert(1) hue-rotate(180deg);
-  background: #e8edf5;
-}
-/* Содержимое документов (PDF-страницы, картинки) не инвертируем */
-html.dark .app-chrome canvas,
-html.dark .app-chrome img,
-html.dark .app-chrome iframe {
-  filter: invert(1) hue-rotate(180deg);
 }

@@ -172,9 +172,6 @@ export interface PdfEditorState {
   currentFont: string;
   currentFontSize: number;
   currentTextColor: string;
-  penColor: string;      // цвет пера (инструмент «Перо»)
-  penThickness: number;  // толщина пера, в единицах PDF
-  eraserSize: number;    // размер ластика, в единицах PDF
   pickedColor: string;
   selectedFragment: FragmentData | null;
   clipboardFragment: FragmentData | null;
@@ -194,6 +191,9 @@ export interface PdfEditorState {
   zoomLevel: number;
   isProcessing: boolean;
   secondaryPanelWidth: number;
+  // ── Инструменты: перо и ластик ──
+  penWidth: number;      // толщина пера (PDF units)
+  eraserSize: number;    // размер ластика (PDF units)
   // ── History ("layers") ──
   historyStack: HistoryEntry[];
   historyIndex: number;   // how many entries are applied (0..historyStack.length)
@@ -222,9 +222,6 @@ export interface PdfEditorState {
   setFont: (font: string) => void;
   setFontSize: (size: number) => void;
   setTextColor: (color: string) => void;
-  setPenColor: (color: string) => void;
-  setPenThickness: (width: number) => void;
-  setEraserSize: (size: number) => void;
   addTextAnnotation: (annotation: TextAnnotation) => void;
   updateTextAnnotation: (id: string, updates: Partial<TextAnnotation>) => void;
   removeTextAnnotation: (id: string) => void;
@@ -248,6 +245,8 @@ export interface PdfEditorState {
   setZoomLevel: (zoom: number) => void;
   setIsProcessing: (p: boolean) => void;
   setSecondaryPanelWidth: (w: number) => void;
+  setPenWidth: (w: number) => void;
+  setEraserSize: (s: number) => void;
   togglePageSelection: (page: number) => void;
   toggleSecondaryPageSelection: (page: number) => void;
   selectAllPages: () => void;
@@ -437,7 +436,6 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
   pageOrder: [], pageSelections: [], pageRotations: {},
   activeTool: null,
   textAnnotations: [], currentFont: "Times New Roman", currentFontSize: 14, currentTextColor: "#000000",
-  penColor: "#000000", penThickness: 2, eraserSize: 25,
   pickedColor: "#000000",
   selectedFragment: null, clipboardFragment: null,
   placedFragments: [],
@@ -449,6 +447,7 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
   secondaryPdfFile: null, secondaryFileName: "", secondaryPdfJsDoc: null,
   secondaryTotalPages: 0, secondaryCurrentPage: 1, secondaryPageSelections: [], showSecondary: false,
   zoomLevel: 1.0, isProcessing: false, secondaryPanelWidth: 400,
+  penWidth: 2, eraserSize: 12,
   historyStack: [], historyIndex: 0, canUndo: false, canRedo: false,
   signatureTemplates: loadSignatureTemplates(),
   searchQuery: "", searchMatches: [], flatSearchItems: [], searchCurrentMatchIndex: -1,
@@ -616,9 +615,6 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
   setFont: (f) => set({ currentFont: f }),
   setFontSize: (s) => set({ currentFontSize: s }),
   setTextColor: (c) => set({ currentTextColor: c, pickedColor: c }),
-  setPenColor: (c) => set({ penColor: c }),
-  setPenThickness: (w) => set({ penThickness: w }),
-  setEraserSize: (size) => set({ eraserSize: size }),
 
   addTextAnnotation: (a) => {
     get().pushHistory("Добавление текста");
@@ -637,7 +633,7 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
     }));
   },
 
-  setPickedColor: (c) => set({ pickedColor: c, currentTextColor: c, penColor: c }),
+  setPickedColor: (c) => set({ pickedColor: c, currentTextColor: c }),
   setSelectedFragment: (f) => set({ selectedFragment: f }),
 
   copyFragment: () => {
@@ -749,6 +745,8 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
   setZoomLevel: (z) => set({ zoomLevel: Math.max(0.25, Math.min(3, z)) }),
   setIsProcessing: (p) => set({ isProcessing: p }),
   setSecondaryPanelWidth: (w) => set({ secondaryPanelWidth: Math.max(200, Math.min(1200, w)) }),
+  setPenWidth: (w) => set({ penWidth: Math.max(0.5, Math.min(20, w)) }),
+  setEraserSize: (s) => set({ eraserSize: Math.max(2, Math.min(60, s)) }),
 
   togglePageSelection: (page) => set((s) => ({
     pageSelections: s.pageSelections.includes(page)

@@ -15,7 +15,7 @@ import tarfile
 from pathlib import Path
 
 APP_NAME = "pdf-editor"
-VERSION = "2.0.2"
+VERSION = "2.0.4"
 RELEASE = "1"
 ARCH = "x86_64"
 
@@ -49,7 +49,12 @@ def main() -> int:
     print("[2/2] Сборка RPM (rpmbuild -bb) ...")
     cmd = [
         "rpmbuild", "-bb",
+        # Поддержка окружений без системного /usr/lib/rpm (rcfile из локального набора)
+        "--rcfile", "/tmp/rpmtool/root/usr/lib/rpm/rpmrc",
         "--define", f"_topdir {TOPDIR}",
+        "--define", f"_buildrootdir {TOPDIR}/BUILDROOT",
+        "--define", f"buildroot {TOPDIR}/BUILDROOT/%{{NAME}}-%{{VERSION}}-%{{RELEASE}}.%{{_arch}}",
+        "--define", f"_rpmconfigdir /tmp/rpmtool/root/usr/lib/rpm",
         "--define", f"_tmppath {TOPDIR}/TMP",
         "--define", "_binary_payload w9.gzdio",   # gzip — совместимо с rpm 4.14 (РЕД ОС 8)
         "--define", "__os_install_post %{nil}",   # без strip/brp-скриптов
