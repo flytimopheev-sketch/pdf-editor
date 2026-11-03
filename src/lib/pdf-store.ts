@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { uint8ArrayToBase64, base64ToUint8Array } from "./pdf-utils";
 
-export type ToolType = "select" | "text" | "eyedropper" | "crop" | "pan" | "paste" | "eraser" | "pen" | "highlight" | "underline" | "strikethrough" | "sticky" | null;
+export type ToolType = "select" | "text" | "eyedropper" | "crop" | "pan" | "paste" | "eraser" | "pen" | "lighten" | "darken" | "smooth" | "highlight" | "underline" | "strikethrough" | "sticky" | null;
 
 export interface TextAnnotation {
   id: string;
@@ -54,6 +54,8 @@ export interface DrawingStroke {
   points: Array<{ x: number; y: number }>;
   color: string;
   width: number;
+  /** Вид кисти: перо / осветление / затемнение / сглаживание (как в Photoshop) */
+  kind?: "pen" | "lighten" | "darken" | "smooth";
 }
 
 export interface StickyNote {
@@ -216,6 +218,8 @@ export interface PdfEditorState {
 
   loadPdf: (file: ArrayBuffer, fileName: string) => Promise<void>;
   appendImagesAsPages: (newBytes: Uint8Array, addedPages: number, firstNewPage: number) => Promise<void>;
+  /** Добавить PDF-файлы в конец текущего документа (склейка) → кол-во добавленных страниц */
+  appendPdfFiles: (files: File[]) => Promise<number>;
   setCurrentPage: (page: number) => void;
   rotatePage: (degrees: number) => void;
   setActiveTool: (tool: ToolType) => void;
@@ -911,8 +915,78 @@ export const usePdfEditorStore = create<PdfEditorState>((set, get) => ({
     });
   },
 
+  appendPdfFiles: async (files) => {
+    const { pdfFile, pdfJsDoc } = get();
+    if (!pdfFile || !pdfJsDoc || files.length === 0) return 0;
+    set({ isProcessing: true });
+    try {
+      const { PDFDocument } = await import('pdf-lib');
+      const mainDoc = await PDFDocument.load(pdfFile);
+      let added = 0;
+      const failed: string[] = [];
+      for (const file of files) {
+        try {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const src = await PDFDocument.load(bytes);
+          const copied = await mainDoc.copyPages(src, src.getPageIndices());
+          copied.forEach((p) => mainDoc.addPage(p));
+          added += src.getPageCount();
+        } catch (err) {
+          console.error('appendPdfFiles: не удалось добавить', file.name, err);
+          failed.push(file.name);
+        }
+      }
+      if (added === 0) {
+        set({ isProcessing: false });
+        alert('Не удалось добавить выбранные файлы. Убедитесь, что это PDF-документы.');
+        return 0;
+      }
+      const saved = await mainDoc.save();
+      const newBytes = new Uint8Array(saved);
+
+      // Перезагружаем документ в pdfjs
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString();
+      const doc = await pdfjsLib.getDocument({ data: newBytes.slice() }).promise;
+      const totalPages = doc.numPages;
+      const pageOrder = Array.from({ length: totalPages }, (_, i) => i + 1);
+
+      get().pushHistory(`Добавление PDF (+${added} стр.)`);
+      const cur = get();
+      usePdfEditorStore.setState({
+        pdfFile: newBytes,
+        pdfJsDoc: doc,
+        totalPages,
+        docVersion: cur.docVersion + 1,
+        pageOrder,
+        pageSelections: [],
+        ocrResults: {},
+        ocrDocVersion: -1,
+        isProcessing: false,
+      });
+      if (failed.length > 0) {
+        alert(`Добавлено страниц: ${added}. Не удалось добавить: ${failed.join(', ')}`);
+      }
+      return added;
+    } catch (err) {
+      console.error('appendPdfFiles error:', err);
+      alert('Ошибка при добавлении PDF: ' + String(err));
+      set({ isProcessing: false });
+      return 0;
+    }
+  },
+
   addDrawingStroke: (stroke) => {
-    get().pushHistory("Рисование пером");
+    const labelByKind: Record<string, string> = {
+      pen: "Рисование пером",
+      lighten: "Осветление",
+      darken: "Затемнение",
+      smooth: "Сглаживание",
+    };
+    get().pushHistory(labelByKind[stroke.kind || "pen"] || "Рисование пером");
     set((s) => ({ drawingStrokes: [...s.drawingStrokes, stroke] }));
   },
 

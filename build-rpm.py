@@ -12,10 +12,13 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import json
 from pathlib import Path
 
 APP_NAME = "pdf-editor"
-VERSION = "2.0.4"
+# Версия — единый источник истины: package.json
+with open(Path(__file__).resolve().parent / "package.json", encoding="utf-8") as _f:
+    VERSION = json.load(_f)["version"]
 RELEASE = "1"
 ARCH = "x86_64"
 
@@ -60,6 +63,35 @@ def main() -> int:
         "--define", "__os_install_post %{nil}",   # без strip/brp-скриптов
         "--define", "debug_package %{nil}",
         "--define", "dist .el8",                  # имя пакета: pdf-editor-2.0.0-1.el8.x86_64.rpm
+        "--define", f"version {VERSION}",         # версия из package.json
+        # Стандартные макросы: при переносном rpmtool (без /usr/lib/rpm/macros)
+        # они не подхватываются из системных файлов — задаём явно
+        "--define", f"_sourcedir {TOPDIR}/SOURCES",
+        "--define", f"_builddir {TOPDIR}/BUILD",
+        "--define", f"_srcrpmdir {TOPDIR}/SRPMS",
+        "--define", f"_rpmdir {TOPDIR}/RPMS",
+        "--define", f"_specdir {TOPDIR}/SPECS",
+        "--define", "_prefix /usr",
+        "--define", "_sysconfdir /etc",
+        "--define", "_datadir /usr/share",
+        "--define", "_bindir /usr/bin",
+        "--define", "_lib lib",
+        "--define", "__mkdir_p /bin/mkdir -p",
+        "--define", "__rm /bin/rm",
+        "--define", "__cp /bin/cp",
+        "--define", "__install /usr/bin/install",
+        "--define", "__tar /bin/tar",
+        "--define", "__gzip /usr/bin/gzip",
+        "--define", "__ln_s /bin/ln -s",
+        "--define", "_arch x86_64",
+        "--define", "_os linux",
+        "--define", "_hostcpu x86_64",
+        "--define", "_targetcpu x86_64",
+        "--define", "_host x86_64-redhat-linux",
+        "--define", "_build x86_64-redhat-linux",
+        "--define", "_target x86_64-redhat-linux",
+        "--define", "_target_platform x86_64-redhat-linux",
+        "--define", "_build_platform x86_64-redhat-linux",
         str(SPEC),
     ]
     result = subprocess.run(cmd)

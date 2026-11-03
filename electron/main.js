@@ -4,8 +4,48 @@ const { spawn } = require("child_process");
 
 let mainWindow = null;
 let serverProcess = null;
+let ocrProcess = null;
 const SERVER_PORT = 3000;
+const OCR_PORT = 3011;
 const APP_DIR = path.dirname(__dirname);
+
+app.setName("Редактор PDF");
+
+/** OCR-сервис (распознавание сканов для поиска): порт 3011.
+ *  Запускается через ELECTRON_RUN_AS_NODE — отдельный node/bun не нужен. */
+function startOcrService() {
+  return new Promise((resolve) => {
+    const http = require("http");
+    // Уже работает (запуск из другого экземпляра) — не дублируем
+    http
+      .get(`http://127.0.0.1:${OCR_PORT}/`, () => {
+        console.log("[main] OCR-сервис уже работает на", OCR_PORT);
+        resolve();
+      })
+      .on("error", () => {
+        const nodeExe = process.execPath;
+        const ocrScript = path.join(APP_DIR, "app", "ocr-service.js");
+        try {
+          ocrProcess = spawn(nodeExe, [ocrScript], {
+            env: {
+              ...process.env,
+              ELECTRON_RUN_AS_NODE: "1",
+              OCR_PORT: String(OCR_PORT),
+              OCR_LANG_DIR: path.join(APP_DIR, "app", "ocr-data"),
+            },
+            cwd: path.join(APP_DIR, "app"),
+            stdio: "inherit",
+          });
+          ocrProcess.on("error", (err) =>
+            console.error("[main] OCR-сервис не запустился:", err)
+          );
+        } catch (err) {
+          console.error("[main] Ошибка запуска OCR-сервиса:", err);
+        }
+        resolve(); // поиск по текстовому слою работает и без OCR
+      });
+  });
+}
 
 function startServer() {
   return new Promise((resolve, reject) => {
@@ -105,6 +145,17 @@ function createMenu() {
             }
           },
         },
+        {
+          label: "Добавить PDF (склеить)",
+          accelerator: "CmdOrCtrl+Shift+O",
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.executeJavaScript(
+                `window.dispatchEvent(new CustomEvent('pdf-append'))`
+              );
+            }
+          },
+        },
         { type: "separator" },
         {
           label: "Сохранить",
@@ -167,6 +218,7 @@ function createMenu() {
 
 app.whenReady().then(async () => {
   try {
+    await startOcrService();
     await startServer();
     createMenu();
     createWindow();
@@ -183,6 +235,10 @@ app.on("window-all-closed", () => {
       serverProcess.kill();
       serverProcess = null;
     }
+    if (ocrProcess) {
+      ocrProcess.kill();
+      ocrProcess = null;
+    }
     app.quit();
   }
 });
@@ -191,6 +247,10 @@ app.on("before-quit", () => {
   if (serverProcess) {
     serverProcess.kill();
     serverProcess = null;
+  }
+  if (ocrProcess) {
+    ocrProcess.kill();
+    ocrProcess = null;
   }
 });
 

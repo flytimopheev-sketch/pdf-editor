@@ -8,6 +8,7 @@ import {
   Highlighter, Underline, StickyNote, Search, Printer, FileDown,
   FileSpreadsheet, Signature, ChevronUp, ChevronDown, X, FileImage, Crop,
   FileX2, Download, Upload, AlertTriangle, Layers, SearchX, Loader2,
+  Sun, Moon, Droplets, FilePlus2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -1158,6 +1159,7 @@ function PenEraserSettings() {
 
 export function Toolbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const appendInputRef = useRef<HTMLInputElement>(null);
   const secondaryInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -1226,13 +1228,81 @@ export function Toolbar() {
       openImagesAsPdf(images);
       return;
     }
-    const file = files[0];
+    const pdfs = files.filter(
+      (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+    );
+    if (pdfs.length === 0) return;
+    const st = usePdfEditorStore.getState();
+    // Документ уже открыт → все выбранные PDF добавляются в конец (склейка)
+    if (st.pdfFile) {
+      usePdfEditorStore
+        .getState()
+        .appendPdfFiles(pdfs)
+        .then((added) => {
+          if (added > 0) {
+            toast({
+              title: 'PDF добавлены в документ',
+              description: `Склеено страниц: +${added} · сохранить всё вместе — Ctrl+S`,
+            });
+          }
+        });
+      return;
+    }
+    // Документ не открыт → первый открываем, остальные приклеиваем
+    const [first, ...rest] = pdfs;
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const buffer = ev.target?.result as ArrayBuffer;
-      await usePdfEditorStore.getState().loadPdf(buffer, file.name);
+      await usePdfEditorStore.getState().loadPdf(buffer, first.name);
+      if (rest.length > 0) {
+        const added = await usePdfEditorStore.getState().appendPdfFiles(rest);
+        if (added > 0) {
+          toast({
+            title: 'Документы объединены',
+            description: `Добавлено страниц: +${added} · сохранить всё вместе — Ctrl+S`,
+          });
+        }
+      }
     };
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(first);
+  };
+
+  // ── «Добавить PDF» (склейка с текущим документом) — кнопка и событие из меню Electron
+  const handleAppendPdf = useCallback(
+    (e?: Event) => {
+      e?.preventDefault?.();
+      const st = usePdfEditorStore.getState();
+      if (!st.pdfFile) {
+        fileInputRef.current?.click();
+        return;
+      }
+      appendInputRef.current?.click();
+    },
+    []
+  );
+
+  useEffect(() => {
+    window.addEventListener('pdf-append', handleAppendPdf);
+    return () => window.removeEventListener('pdf-append', handleAppendPdf);
+  }, [handleAppendPdf]);
+
+  const handleAppendChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter(
+      (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+    );
+    e.target.value = '';
+    if (files.length === 0) return;
+    usePdfEditorStore
+      .getState()
+      .appendPdfFiles(files)
+      .then((added) => {
+        if (added > 0) {
+          toast({
+            title: 'PDF добавлены в документ',
+            description: `Склеено страниц: +${added} · сохранить всё вместе — Ctrl+S`,
+          });
+        }
+      });
   };
 
   // ── Secondary source open handler
@@ -1336,9 +1406,15 @@ export function Toolbar() {
           {/* ── 1. File ops ──────────────────────────────────────── */}
           <ToolButton
             icon={<FolderOpen className="w-3.5 h-3.5" />}
-            label="Открыть PDF или изображение (JPEG / PNG → PDF)"
+            label="Открыть PDF или изображение (JPEG / PNG → PDF). Несколько PDF — откроются вместе"
             colorGroup="file"
             onClick={() => fileInputRef.current?.click()}
+          />
+          <ToolButton
+            icon={<FilePlus2 className="w-3.5 h-3.5" />}
+            label="Добавить PDF — приклеить в конец текущего документа (Ctrl+Shift+O)"
+            colorGroup="file"
+            onClick={() => handleAppendPdf()}
           />
           <ToolButton
             icon={<Undo2 className="w-3.5 h-3.5" />}
@@ -1472,6 +1548,31 @@ export function Toolbar() {
             colorGroup="tool"
             active={activeTool === 'pen'}
             onClick={() => setActiveTool('pen')}
+          />
+          {/* Кисти в стиле Photoshop: используют толщину пера из настроек */}
+          <ToolButton
+            icon={<Sun className="w-3.5 h-3.5" />}
+            label="Осветление (кисть)"
+            colorGroup="tool"
+            active={activeTool === 'lighten'}
+            onClick={() => setActiveTool('lighten')}
+            disabled={!pdfFile}
+          />
+          <ToolButton
+            icon={<Moon className="w-3.5 h-3.5" />}
+            label="Затемнение (кисть)"
+            colorGroup="tool"
+            active={activeTool === 'darken'}
+            onClick={() => setActiveTool('darken')}
+            disabled={!pdfFile}
+          />
+          <ToolButton
+            icon={<Droplets className="w-3.5 h-3.5" />}
+            label="Сглаживание (кисть)"
+            colorGroup="tool"
+            active={activeTool === 'smooth'}
+            onClick={() => setActiveTool('smooth')}
+            disabled={!pdfFile}
           />
           <PenEraserSettings />
           <ToolButton
@@ -1775,6 +1876,14 @@ export function Toolbar() {
             multiple
             className="hidden"
             onChange={handleFileOpen}
+          />
+          <input
+            ref={appendInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            multiple
+            className="hidden"
+            onChange={handleAppendChange}
           />
           <input
             ref={secondaryInputRef}

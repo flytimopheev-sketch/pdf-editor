@@ -1,5 +1,5 @@
 Name:           pdf-editor
-Version:        2.0.4
+Version:        2.0.5
 Release:        1%{?dist}
 Summary:        Редактор PDF — редактор PDF-документов для РЕД ОС
 License:        MIT
@@ -30,12 +30,15 @@ install -m 755 run.sh       %{buildroot}/opt/pdf-editor/run.sh
 install -m 755 install.sh   %{buildroot}/opt/pdf-editor/install.sh
 install -m 755 uninstall.sh %{buildroot}/opt/pdf-editor/uninstall.sh
 
-# Иконки всех размеров (красивый ярлык в меню)
+# Иконки всех размеров (красивый ярлык в меню и на панели задач)
 for size in 16 24 32 48 64 128 256 512; do
   mkdir -p %{buildroot}/usr/share/icons/hicolor/${size}x${size}/apps
   install -m 644 icons/pdf-editor-${size}.png \
     %{buildroot}/usr/share/icons/hicolor/${size}x${size}/apps/pdf-editor.png
 done
+# Фолбэк для окружений, читающих только pixmaps
+mkdir -p %{buildroot}/usr/share/pixmaps
+install -m 644 icons/pdf-editor-256.png %{buildroot}/usr/share/pixmaps/pdf-editor.png
 
 # Ярлык в меню приложений
 mkdir -p %{buildroot}/usr/share/applications
@@ -50,6 +53,7 @@ Terminal=false
 Type=Application
 Categories=Office;Graphics;Viewer;
 StartupNotify=true
+StartupWMClass=pdf-editor
 EOF
 
 %post
@@ -60,5 +64,6 @@ gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || :
 /opt/pdf-editor
 /usr/share/applications/pdf-editor.desktop
 /usr/share/icons/hicolor/*/apps/pdf-editor.png
+/usr/share/pixmaps/pdf-editor.png
 # SUID-помощник Chrome sandbox обязателен для Electron
 %attr(4755,root,root) /opt/pdf-editor/electron/electron/chrome-sandbox

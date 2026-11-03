@@ -7,10 +7,12 @@ SCRIPT_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
 BUILD_DIR="$PROJECT_DIR/dist-electron"
 APP_NAME="pdf-editor"
-VERSION="2.0.4"
+# Версия берётся из package.json — единый источник истины
+VERSION="$(sed -n 's/.*"version": "\([^"]*\)".*/\1/p' "$PROJECT_DIR/package.json" | head -1)"
 ARCH="x86_64"
 PACKAGE_NAME="$APP_NAME-$VERSION-$ARCH"
 PACKAGE_DIR="$BUILD_DIR/$PACKAGE_NAME"
+echo "Версия из package.json: $VERSION"
 
 echo "[1/4] Building Next.js standalone..."
 (cd "$PROJECT_DIR" && /usr/local/bin/bun run build)
@@ -24,6 +26,25 @@ mkdir -p "$PACKAGE_DIR/electron"
 cp -r "$PROJECT_DIR/.next/standalone/." "$PACKAGE_DIR/app/"
 cp -r "$PROJECT_DIR/.next/static" "$PACKAGE_DIR/app/.next/" 2>/dev/null || true
 cp -r "$PROJECT_DIR/public" "$PACKAGE_DIR/app/" 2>/dev/null || true
+
+# ── OCR-сервис (поиск по сканам) ───────────────────────────────────
+# Node-совместимый сервер → app/ocr-service.js (запускается из main.js через ELECTRON_RUN_AS_NODE)
+cp "$PROJECT_DIR/mini-services/ocr-service/node-server.cjs" "$PACKAGE_DIR/app/ocr-service.js"
+# Языковые модели rus+eng
+mkdir -p "$PACKAGE_DIR/app/ocr-data"
+cp "$PROJECT_DIR/ocr-data/rus.traineddata" "$PACKAGE_DIR/app/ocr-data/" 2>/dev/null || echo "  WARNING: rus.traineddata не найден"
+cp "$PROJECT_DIR/ocr-data/eng.traineddata" "$PACKAGE_DIR/app/ocr-data/" 2>/dev/null || echo "  WARNING: eng.traineddata не найден"
+# tesseract.js и его зависимости → app/node_modules (резолвятся из ocr-service.js)
+for pkg in tesseract.js tesseract.js-core bmp-js idb-keyval is-electron is-url node-fetch opencollective-postinstall regenerator-runtime tr46; do
+  SRC_PKG="$PROJECT_DIR/mini-services/ocr-service/node_modules/$pkg"
+  [ -d "$SRC_PKG" ] || SRC_PKG="$PROJECT_DIR/node_modules/$pkg"
+  if [ -d "$SRC_PKG" ]; then
+    mkdir -p "$PACKAGE_DIR/app/node_modules/$pkg"
+    cp -r "$SRC_PKG"/. "$PACKAGE_DIR/app/node_modules/$pkg/"
+  else
+    echo "  WARNING: пакет $pkg не найден для OCR"
+  fi
+done
 
 # Copy Electron files
 cp "$PROJECT_DIR/electron/main.js" "$PACKAGE_DIR/electron/main.js"
@@ -65,7 +86,9 @@ export PORT=3000
 export DATABASE_URL="${DATABASE_URL:-file:$HOME/.pdf-editor/custom.db}"
 mkdir -p "$(dirname "${DATABASE_URL#file:}")" 2>/dev/null
 
-exec "$ELECTRON" "$MAIN_JS"
+# --class=pdf-editor → WM_CLASS окна совпадает с StartupWMClass в .desktop:
+# панель задач показывает красивую иконку приложения, а не системную заглушку
+exec "$ELECTRON" --class=pdf-editor "$MAIN_JS"
 LAUNCHER
 chmod +x "$PACKAGE_DIR/run.sh"
 
@@ -109,6 +132,11 @@ for size in 16 24 32 48 64 128 256 512; do
     cp "\$SCRIPT_DIR/icons/pdf-editor-\${size}.png" "/usr/share/icons/hicolor/\${size}x\${size}/apps/pdf-editor.png"
   fi
 done
+# Абсолютный путь-фолбэк — некоторые окружения меню смотрят только в pixmaps
+if [ -f "\$SCRIPT_DIR/icons/pdf-editor-256.png" ]; then
+  mkdir -p /usr/share/pixmaps
+  cp "\$SCRIPT_DIR/icons/pdf-editor-256.png" /usr/share/pixmaps/pdf-editor.png
+fi
 
 echo "[3/3] Создание ярлыка в меню приложений..."
 mkdir -p /usr/share/applications
@@ -123,7 +151,7 @@ Terminal=false
 Type=Application
 Categories=Office;Graphics;Viewer;
 StartupNotify=true
-StartupWMClass=Редактор PDF
+StartupWMClass=pdf-editor
 EOF
 
 chmod 644 /usr/share/applications/\$APP_NAME.desktop
@@ -154,6 +182,7 @@ rm -f /usr/share/applications/pdf-editor.desktop
 for size in 16 24 32 48 64 128 256 512; do
   rm -f "/usr/share/icons/hicolor/${size}x${size}/apps/pdf-editor.png"
 done
+rm -f /usr/share/pixmaps/pdf-editor.png
 rm -rf /opt/pdf-editor
 update-desktop-database /usr/share/applications 2>/dev/null || true
 gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true

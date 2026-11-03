@@ -435,12 +435,55 @@ async function compositePageCanvas(
     }
   }
 
-  // 3. Pen strokes
+  // 3. Pen strokes + кисти в стиле Photoshop (осветление/затемнение/сглаживание)
   for (const stroke of drawingStrokes) {
     if (stroke.points.length < 2) continue;
+    const kind = stroke.kind || "pen";
+
+    if (kind === "smooth") {
+      // Сглаживание: блюр содержимого compCanvas под штрихом через маску
+      const radius = Math.max(2, stroke.width * renderScale * 0.5);
+      const blur = document.createElement("canvas");
+      blur.width = compCanvas.width;
+      blur.height = compCanvas.height;
+      const bctx = blur.getContext("2d");
+      if (bctx) {
+        bctx.filter = `blur(${radius}px)`;
+        bctx.drawImage(compCanvas, 0, 0);
+        bctx.filter = "none";
+        // Маска штриха
+        const mask = document.createElement("canvas");
+        mask.width = compCanvas.width;
+        mask.height = compCanvas.height;
+        const mctx = mask.getContext("2d");
+        if (mctx) {
+          mctx.strokeStyle = "#ffffff";
+          mctx.lineWidth = stroke.width * renderScale;
+          mctx.lineCap = "round";
+          mctx.lineJoin = "round";
+          mctx.beginPath();
+          mctx.moveTo(stroke.points[0].x * renderScale, stroke.points[0].y * renderScale);
+          for (let j = 1; j < stroke.points.length; j++) {
+            mctx.lineTo(stroke.points[j].x * renderScale, stroke.points[j].y * renderScale);
+          }
+          mctx.stroke();
+          bctx.globalCompositeOperation = "destination-in";
+          bctx.drawImage(mask, 0, 0);
+          bctx.globalCompositeOperation = "source-over";
+          ctx.drawImage(blur, 0, 0);
+        }
+      }
+      continue;
+    }
+
     ctx.save();
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = stroke.width * renderScale;
+    if (kind === "lighten" || kind === "darken") {
+      ctx.strokeStyle = kind === "lighten" ? "rgba(255, 255, 255, 0.30)" : "rgba(0, 0, 0, 0.30)";
+      ctx.lineWidth = stroke.width * renderScale * 1.8;
+    } else {
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width * renderScale;
+    }
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();

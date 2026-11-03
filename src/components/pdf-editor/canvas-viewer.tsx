@@ -45,6 +45,66 @@ const STICKY_HEADER_MAP: Record<StickyNote["color"], string> = {
   orange: "#fb923c",
 };
 
+/**
+ * Сглаживание (как «смаз» в Photoshop): размывает изображение страницы под
+ * штрихом кисти. Берёт снимок «под штрихом» (страница + уже нарисованные слои),
+ * блюрит его и накладывает через маску формы штриха — идемпотентно при
+ * перерисовке слоёв с нуля.
+ */
+function drawSmoothStrokeLive(
+  overlayCtx: CanvasRenderingContext2D,
+  bgCanvas: HTMLCanvasElement | null,
+  overlayCanvas: HTMLCanvasElement | null,
+  points: Array<{ x: number; y: number }>,
+  width: number,
+  scale: number
+) {
+  if (!overlayCanvas || points.length < 2) return;
+
+  // 1. Снимок «под штрихом»: страница + предыдущие слои overlay
+  const snap = document.createElement("canvas");
+  snap.width = overlayCanvas.width;
+  snap.height = overlayCanvas.height;
+  const sctx = snap.getContext("2d");
+  if (!sctx) return;
+  if (bgCanvas) sctx.drawImage(bgCanvas, 0, 0);
+  sctx.drawImage(overlayCanvas, 0, 0);
+
+  // 2. Размытие снимка (радиус зависит от толщины кисти)
+  const blur = document.createElement("canvas");
+  blur.width = snap.width;
+  blur.height = snap.height;
+  const bctx = blur.getContext("2d");
+  if (!bctx) return;
+  const radius = Math.max(2, width * scale * 0.5);
+  bctx.filter = `blur(${radius}px)`;
+  bctx.drawImage(snap, 0, 0);
+  bctx.filter = "none";
+
+  // 3. Маска штриха — толстая линия по точкам
+  const mask = document.createElement("canvas");
+  mask.width = snap.width;
+  mask.height = snap.height;
+  const mctx = mask.getContext("2d");
+  if (!mctx) return;
+  mctx.strokeStyle = "#ffffff";
+  mctx.lineWidth = width * scale;
+  mctx.lineCap = "round";
+  mctx.lineJoin = "round";
+  mctx.beginPath();
+  mctx.moveTo(points[0].x * scale, points[0].y * scale);
+  for (let i = 1; i < points.length; i++) {
+    mctx.lineTo(points[i].x * scale, points[i].y * scale);
+  }
+  mctx.stroke();
+
+  // 4. Блюр ∩ маска → на overlay
+  bctx.globalCompositeOperation = "destination-in";
+  bctx.drawImage(mask, 0, 0);
+  bctx.globalCompositeOperation = "source-over";
+  overlayCtx.drawImage(blur, 0, 0);
+}
+
 export function CanvasViewer({ source }: CanvasViewerProps) {
   const store = usePdfEditorStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -166,6 +226,12 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
   const pageRotations = store.pageRotations;
   const pageAdjustments = store.pageAdjustments;
   const docVersion = store.docVersion;
+
+  // Кисть в стиле Photoshop: активная кисть может быть осветлением/затемнением/сглаживанием
+  const brushToolKind: DrawingStroke["kind"] =
+    activeTool === "lighten" || activeTool === "darken" || activeTool === "smooth"
+      ? activeTool
+      : "pen";
 
   // ---------- Filtered arrays ----------
   const myFragments = useMemo(
@@ -475,12 +541,22 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       ctx.restore();
     }
 
-    // --- Drawing strokes (pen / free drawing) ---
+    // --- Drawing strokes (pen / lighten / darken / smooth) ---
     for (const stroke of myDrawingStrokes) {
       if (stroke.points.length < 2) continue;
+      const kind = stroke.kind || "pen";
+      if (kind === "smooth") {
+        drawSmoothStrokeLive(ctx, canvasRef.current, overlayCanvasRef.current, stroke.points, stroke.width, scale);
+        continue;
+      }
       ctx.save();
-      ctx.strokeStyle = stroke.color;
-      ctx.lineWidth = stroke.width * scale;
+      if (kind === "lighten" || kind === "darken") {
+        ctx.strokeStyle = kind === "lighten" ? "rgba(255, 255, 255, 0.30)" : "rgba(0, 0, 0, 0.30)";
+        ctx.lineWidth = stroke.width * scale * 1.8;
+      } else {
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.width * scale;
+      }
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
@@ -492,23 +568,32 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       ctx.restore();
     }
 
-    // --- Current pen stroke being drawn ---
+    // --- Current brush stroke being drawn (перо/осветление/затемнение/сглаживание) ---
     if (isPenDrawing && currentPenStroke.length >= 2) {
-      ctx.save();
-      ctx.strokeStyle = store.currentTextColor;
-      ctx.lineWidth = store.penWidth * scale;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.beginPath();
-      ctx.moveTo(currentPenStroke[0].x * scale, currentPenStroke[0].y * scale);
-      for (let i = 1; i < currentPenStroke.length; i++) {
-        ctx.lineTo(
-          currentPenStroke[i].x * scale,
-          currentPenStroke[i].y * scale
-        );
+      if (brushToolKind === "smooth") {
+        drawSmoothStrokeLive(ctx, canvasRef.current, overlayCanvasRef.current, currentPenStroke, store.penWidth, scale);
+      } else {
+        ctx.save();
+        if (brushToolKind === "lighten" || brushToolKind === "darken") {
+          ctx.strokeStyle = brushToolKind === "lighten" ? "rgba(255, 255, 255, 0.30)" : "rgba(0, 0, 0, 0.30)";
+          ctx.lineWidth = store.penWidth * scale * 1.8;
+        } else {
+          ctx.strokeStyle = store.currentTextColor;
+          ctx.lineWidth = store.penWidth * scale;
+        }
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(currentPenStroke[0].x * scale, currentPenStroke[0].y * scale);
+        for (let i = 1; i < currentPenStroke.length; i++) {
+          ctx.lineTo(
+            currentPenStroke[i].x * scale,
+            currentPenStroke[i].y * scale
+          );
+        }
+        ctx.stroke();
+        ctx.restore();
       }
-      ctx.stroke();
-      ctx.restore();
     }
 
     // --- Text annotations (primary only) ---
@@ -937,7 +1022,12 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     } else if (activeTool === "eraser") {
       setIsErasing(true);
       setCurrentEraserStroke([{ x: docX, y: docY }]);
-    } else if (activeTool === "pen") {
+    } else if (
+      activeTool === "pen" ||
+      activeTool === "lighten" ||
+      activeTool === "darken" ||
+      activeTool === "smooth"
+    ) {
       setIsPenDrawing(true);
       setCurrentPenStroke([{ x: docX, y: docY }]);
     } else if (
@@ -1098,7 +1188,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     setIsErasing(false);
     setCurrentEraserStroke([]);
 
-    // Finish pen stroke
+    // Finish pen/brush stroke
     if (isPenDrawing && currentPenStroke.length >= 2) {
       store.addDrawingStroke({
         id: Date.now().toString() + Math.random().toString(36).slice(2),
@@ -1107,6 +1197,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
         points: [...currentPenStroke],
         color: store.currentTextColor,
         width: store.penWidth,
+        kind: brushToolKind,
       });
     }
     setIsPenDrawing(false);
@@ -1480,6 +1571,9 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
       case "eraser":
         return "cell";
       case "pen":
+      case "lighten":
+      case "darken":
+      case "smooth":
         return "crosshair";
       case "highlight":
         return "crosshair";
@@ -1516,27 +1610,33 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
     if (!activeTool) return null;
     switch (activeTool) {
       case "text":
-        return "\uD83D\uDCDD \u0422\u0435\u043A\u0441\u0442 \u2014 \u043A\u043B\u0438\u043A\u043D\u0438\u0442\u0435 \u0434\u043B\u044F \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u044F";
+        return "📝 Текст — кликните для добавления";
       case "eyedropper":
-        return "\uD83D\uDCA7 \u041F\u0438\u043F\u0435\u0442\u043A\u0430 \u2014 \u043A\u043B\u0438\u043A\u043D\u0438\u0442\u0435 \u0434\u043B\u044F \u0432\u044B\u0431\u043E\u0440\u0430 \u0446\u0432\u0435\u0442\u0430";
+        return "💧 Пипетка — кликните для выбора цвета";
       case "crop":
         return capturing
-          ? "\u23F3 \u0417\u0430\u0445\u0432\u0430\u0447\u0435\u043D \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442 \u0432\u044B\u0441\u043E\u043A\u043E\u0433\u043E \u043A\u0430\u0447\u0435\u0441\u0442\u0432\u0430..."
-          : "\u2702\uFE0F \u0412\u044B\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u2014 \u0432\u044B\u0434\u0435\u043B\u0438\u0442\u0435 \u0444\u0440\u0430\u0433\u043C\u0435\u043D\u0442";
+          ? "⏳ Захвачен фрагмент высокого качества..."
+          : "✂️ Выделение — выделите фрагмент";
       case "paste":
-        return "\uD83D\uDCCB \u0412\u0441\u0442\u0430\u0432\u043A\u0430 \u2014 \u043A\u043B\u0438\u043A\u043D\u0438\u0442\u0435 \u0434\u043B\u044F \u0432\u0441\u0442\u0430\u0432\u043A\u0438 (\u0438\u043B\u0438 Ctrl+V)";
+        return "📋 Вставка — кликните для вставки (или Ctrl+V)";
       case "eraser":
         return isErasing
           ? "🧽 Ластик — ведите, чтобы стереть рисунок и текст"
           : "🧽 Ластик — стирает нарисованное пером и замазывает содержимое PDF (Ctrl+Z — отменить)";
       case "pen":
-        return "\u270F\uFE0F \u041A\u0430\u0440\u0430\u043D\u0434\u0430\u0448 \u2014 \u0440\u0438\u0441\u0443\u0439\u0442\u0435 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u043B\u0438\u043D\u0438\u0438";
+        return "✏️ Карандаш — рисуйте свободные линии";
+      case "lighten":
+        return "☀️ Осветление — ведите кистью по тёмным местам";
+      case "darken":
+        return "🌙 Затемнение — ведите кистью по светлым местам";
+      case "smooth":
+        return "💧 Сглаживание — размывает шум и зерно скана";
       case "highlight":
-        return "\uD83D\uDFE2 \u0412\u044B\u0434\u0435\u043B\u0435\u043D\u0438\u0435 \u2014 \u0432\u044B\u0434\u0435\u043B\u0438\u0442\u0435 \u043E\u0431\u043B\u0430\u0441\u0442\u044C \u0434\u043B\u044F \u043F\u043E\u0434\u0441\u0432\u0435\u0442\u043A\u0438";
+        return "🟢 Выделение — выделите область для подсветки";
       case "underline":
-        return "\uD83C\uDD93 \u041F\u043E\u0434\u0447\u0451\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u0435 \u2014 \u0432\u044B\u0434\u0435\u043B\u0438\u0442\u0435 \u043E\u0431\u043B\u0430\u0441\u0442\u044C \u0434\u043B\u044F \u043F\u043E\u0434\u0447\u0451\u0440\u043A\u0438\u0432\u0430\u043D\u0438\u044F";
+        return "Подчёркивание — выделите область для подчёркивания";
       case "sticky":
-        return "\uD83D\uDCCC \u0417\u0430\u043C\u0435\u0442\u043A\u0430 \u2014 \u043A\u043B\u0438\u043A\u043D\u0438\u0442\u0435 \u0434\u043B\u044F \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D\u0438\u044F \u0437\u0430\u043C\u0435\u0442\u043A\u0438";
+        return "📌 Заметка — кликните для добавления заметки";
       default:
         return null;
     }
@@ -1658,7 +1758,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
           {draggingFragment && (
             <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
               <div className="bg-amber-500/90 backdrop-blur-sm text-white text-xs px-4 py-1.5 rounded-full shadow-lg font-medium">
-                \u270B \u041F\u0435\u0440\u0435\u043C\u0435\u0449\u0435\u043D\u0438\u0435 \u2014 \u043E\u0442\u043F\u0443\u0441\u0442\u0438\u0442\u0435 \u0434\u043B\u044F \u0440\u0430\u0437\u043C\u0435\u0449\u0435\u043D\u0438\u044F
+                ✋ Перемещение — отпустите для размещения
               </div>
             </div>
           )}
@@ -1733,7 +1833,7 @@ export function CanvasViewer({ source }: CanvasViewerProps) {
                     }}
                     className="text-[10px] bg-slate-100 text-slate-600 px-3 py-1 rounded-lg hover:bg-slate-200 font-medium transition-colors"
                   >
-                    \u041E\u0442\u043C\u0435\u043D\u0430
+                    Отмена
                   </button>
                 </div>
               </div>
